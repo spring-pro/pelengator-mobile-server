@@ -1,0 +1,40 @@
+<!--
+  ~ Copyright (c) 2019 Spring-Pro
+  ~ Moscow, Russia
+  ~ All rights reserved.
+  ~
+  ~ This software is the confidential and proprietary information of Spring-Pro. ("Confidential Information").
+  ~ You shall not disclose such Confidential Information and shall use it only in accordance with the terms of the
+  ~ license agreement you entered into with Spring-Pro.
+  ~
+  ~ Author: Maxim Zemskov, https://www.linkedin.com/in/mzemskov/
+  -->
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:task="http://www.springframework.org/schema/task" xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+         http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.0.xsd
+         http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-4.0.xsd http://www.springframework.org/schema/mvc https://www.springframework.org/schema/mvc/spring-mvc.xsd">
+
+    <!--<util:properties id="properties" location="file:/opt/pelengator-conf/pelengator.properties"/>-->
+    <!--<util:properties id="properties" location="file:C:/Projects/!_Pelengator/conf/pelengator.properties"/>-->
+
+    <bean name="core" class="com.pelengator.server.mobile.Core" init-method="init" destroy-method="stop">
+        <property name="isDebugMode" value="false"/>
+    </bean>
+
+    <bean name="tokenFilter" class="com.pelengator.server.mobile.rest.filter.TokenFilter">
+        <property name="core_" ref="core"/>
+    </bean>
+
+    <bean name="baseController" abstract="true" class="com.pelengator.server.mobile.rest.controllers.BaseController">
+        <property name="core_" ref="core"/>
+    </bean>
+
+    <bean name="userController" class="com.pelengator.server.mobile.rest.controllers.UserController" parent="baseController"/>
+    <bean name="deviceController" class="com.pelengator.server.mobile.rest.controllers.DeviceController" parent="baseController"/>
+
+    <task:scheduler id="tasksScheduler" pool-size="10"/>
+</beans>

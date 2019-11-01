@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) 2019 Spring-Pro
+  ~ Moscow, Russia
+  ~ All rights reserved.
+  ~
+  ~ This software is the confidential and proprietary information of Spring-Pro. ("Confidential Information").
+  ~ You shall not disclose such Confidential Information and shall use it only in accordance with the terms of the
+  ~ license agreement you entered into with Spring-Pro.
+  ~
+  ~ Author: Maxim Zemskov, https://www.linkedin.com/in/mzemskov/
+  -->
+
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         version="3.0"
+         xmlns="http://java.sun.com/xml/ns/javaee"
+         xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
+
+    <display-name>Pelengator Server</display-name>
+    <context-param>
+        <param-name>webAppRootKey</param-name>
+        <param-value>pelengator.server</param-value>
+    </context-param>
+
+    <listener>
+        <listener-class>
+            com.pelengator.server.mobile.rest.servlet.ServerContextServlet
+        </listener-class>
+    </listener>
+    <context-param>
+        <param-name>applicationName</param-name>
+        <param-value>pelengator-server</param-value>
+    </context-param>
+
+    <servlet>
+        <servlet-name>dispatcher</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>dispatcher</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- Spring Security -->
+    <filter>
+        <filter-name>tokenFilter</filter-name>
+        <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>tokenFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+</web-app>

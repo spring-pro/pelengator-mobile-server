@@ -15,13 +15,13 @@ package com.pelengator.server.mobile.rest.controllers;
 import com.google.gson.Gson;
 import com.pelengator.server.dao.postgresql.DevicePositionDao;
 import com.pelengator.server.dao.postgresql.DeviceStateDao;
+import com.pelengator.server.dao.postgresql.entity.CommandHistory;
 import com.pelengator.server.dao.postgresql.entity.Device;
 import com.pelengator.server.dao.postgresql.entity.UserDevice;
-import com.pelengator.server.exception.mobile.BaseException;
-import com.pelengator.server.exception.mobile.DataAlreadyExistsException;
-import com.pelengator.server.exception.mobile.IncorrectIMEIException;
-import com.pelengator.server.exception.mobile.UnknownException;
+import com.pelengator.server.exception.mobile.*;
 import com.pelengator.server.mobile.Core;
+import com.pelengator.server.mobile.kafka.KafkaProducer;
+import com.pelengator.server.mobile.kafka.TransportCommandObject;
 import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
@@ -33,12 +33,15 @@ import com.pelengator.server.mobile.rest.entity.response.device.DeviceStateRespo
 import com.pelengator.server.utils.ApplicationUtility;
 import org.apache.log4j.Logger;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +50,9 @@ import java.util.Map;
 public class DeviceController extends BaseController {
 
     private static final Logger LOGGER = Core.getLogger(DeviceController.class.getSimpleName());
+
+    @Autowired
+    private KafkaProducer producer;
 
     @RequestMapping(value = "/add/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
@@ -93,7 +99,7 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -133,7 +139,7 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -169,7 +175,7 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -202,7 +208,7 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -232,7 +238,7 @@ public class DeviceController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -345,6 +351,49 @@ public class DeviceController extends BaseController {
         }
     }
 
+    @RequestMapping(value = "/cmd/{cmd}/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity getDevicePositionTracking(@PathVariable("cmd") String cmd,
+                                                    @PathVariable("token") String token,
+                                                    @PathVariable("uid") long uid) {
+
+        try {
+            Device device = this.getCore_().getUserCurrentDevice(uid);
+
+            CommandHistory commandHistory = new CommandHistory();
+            commandHistory.setCommand(cmd);
+            commandHistory.setDeviceType(1);
+            commandHistory.setDeviceId(device.getId());
+            commandHistory.setSenderId(uid);
+            commandHistory.setSenderType(CommandHistory.CommandSenderTypeEnum.USER.name());
+            commandHistory.setSent(false);
+            commandHistory.setErrMsg("");
+            commandHistory.setCreatedAt(new Timestamp((new java.util.Date()).getTime()));
+            commandHistory.setUpdatedAt(new Timestamp((new java.util.Date()).getTime()));
+            this.getCore_().getDao().save(commandHistory);
+
+            switch (cmd) {
+                case "startEngine": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_ENGINE_START.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                default: {
+                    throw new UnknownCommandException(HttpStatus.OK.value());
+                }
+            }
+
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    new BaseResponse(HttpStatus.OK.value(), "",
+                            new HashMap<>(1).put("answer", "Команда отправлена!")));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> /device/cmd: ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
     @RequestMapping(value = "/get/position/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
@@ -374,7 +423,7 @@ public class DeviceController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/state: ", cause);
+            LOGGER.error("REQUEST error -> /device/get/position: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }

@@ -40,8 +40,7 @@ public class TokenFilter implements Filter {
         HttpServletResponse response = (HttpServletResponse) servletResponse;
         String apiMethodName = request.getPathInfo();
         try {
-            //TODO .....
-            System.out.println("Request -> " + request.getPathInfo());
+            LOGGER.debug("Request -> " + request.getPathInfo());
 
             request.setCharacterEncoding("UTF-8");
             response.setCharacterEncoding("UTF-8");

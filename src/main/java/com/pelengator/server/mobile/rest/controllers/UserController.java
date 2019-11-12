@@ -28,6 +28,7 @@ import com.pelengator.server.mobile.rest.entity.response.user.*;
 import com.pelengator.server.exception.mobile.BaseException;
 import com.pelengator.server.exception.mobile.UnknownException;
 import com.pelengator.server.utils.ApplicationUtility;
+import com.pelengator.server.utils.sms.SmsSender;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.springframework.http.HttpStatus;
@@ -62,8 +63,11 @@ public class UserController extends BaseController {
 
             int smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
 
-            //TODO send SMS ...
-            System.out.println("SMS code: " + smsCode + " for user: " + user.getPhone());
+            LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
+
+            SmsSender smsSender = new SmsSender(user.getPhone(), "Pelengator confirm code: " + smsCode);
+            if (!smsSender.send())
+                throw new UnknownException(HttpStatus.OK.value());
 
             this.getCore_().getUserSmsMapCacheL3().put(user.getId(), smsCode);
 
@@ -73,7 +77,7 @@ public class UserController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /user/login: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /user/login: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -103,7 +107,7 @@ public class UserController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /user/login: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /user/login: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -130,8 +134,11 @@ public class UserController extends BaseController {
 
             int smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
 
-            //TODO send SMS ...
-            LOGGER.info("SMS code: " + smsCode + " for user: " + user.getPhone());
+            LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
+
+            SmsSender smsSender = new SmsSender(user.getPhone(), "Pelengator confirm code: " + smsCode);
+            if (!smsSender.send())
+                throw new UnknownException(HttpStatus.OK.value());
 
             this.getCore_().getUserSmsMapCacheL3().put(user.getId(), smsCode);
 
@@ -141,7 +148,7 @@ public class UserController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /get/sms_code: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /get/sms_code: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -177,7 +184,7 @@ public class UserController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /confirm: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /confirm: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
@@ -229,7 +236,7 @@ public class UserController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.debug("REQUEST error -> /get/config: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /get/config: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {

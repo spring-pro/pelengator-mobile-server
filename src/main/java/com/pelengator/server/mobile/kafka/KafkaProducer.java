@@ -28,7 +28,7 @@ public class KafkaProducer {
 
     public static final ByteBuf AUTOFON_CMD_ENGINE_STOP =
             Unpooled.buffer().writeBytes(new byte[]{
-                    (byte) 0xF5, (byte) 0x4A, (byte) 0x12, (byte) 0x1E});
+                    (byte) 0xF5, (byte) 0x4A, (byte) 0x12, (byte) 0x1E, (byte) 0x03});
 
     public static final ByteBuf AUTOFON_CMD_UNLOCK =
             Unpooled.buffer().writeBytes(new byte[]{

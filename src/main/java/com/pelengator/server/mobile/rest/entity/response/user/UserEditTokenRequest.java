@@ -10,26 +10,35 @@
  * Author: Maxim Zemskov, https://www.linkedin.com/in/mzemskov/
  */
 
-package com.pelengator.server.mobile.rest.entity.request.chat;
+package com.pelengator.server.mobile.rest.entity.response.user;
 
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.annotations.Since;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 
-import java.util.ArrayList;
-import java.util.List;
-
-public class DialogSetReadRequest extends BaseEntity {
+public class UserEditTokenRequest extends BaseEntity {
 
     @Since(1.0)
-    @SerializedName("ids")
-    private String ids;
+    @SerializedName("fms_id")
+    private String fmsId;
 
-    public String getIds() {
-        return ids;
+    @Since(1.0)
+    @SerializedName("os")
+    private String os;
+
+    public String getFmsId() {
+        return fmsId;
     }
 
-    public void setIds(String ids) {
-        this.ids = ids;
+    public void setFmsId(String fmsId) {
+        this.fmsId = fmsId;
+    }
+
+    public String getOs() {
+        return os;
+    }
+
+    public void setOs(String os) {
+        this.os = os;
     }
 }

@@ -74,7 +74,7 @@ public class TokenFilter implements Filter {
             response.setHeader("Content-Type", "application/json");
             response.setStatus(HttpStatus.OK.value());
             response.getWriter().write(new ErrorResponse(HttpStatus.NON_AUTHORITATIVE_INFORMATION.value(),
-                    "Token is expired!").json());
+                    "Время сессии истекло!").json());
             response.getWriter().flush();
             response.getWriter().close();
         } catch (Throwable cause) {

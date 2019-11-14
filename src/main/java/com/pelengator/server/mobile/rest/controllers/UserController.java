@@ -14,6 +14,7 @@ package com.pelengator.server.mobile.rest.controllers;
 
 import com.pelengator.server.dao.postgresql.DeviceDao;
 import com.pelengator.server.dao.postgresql.entity.User;
+import com.pelengator.server.dao.postgresql.entity.UserPushToken;
 import com.pelengator.server.exception.mobile.UserNotFoundException;
 import com.pelengator.server.exception.mobile.WrongSmsCodeException;
 import com.pelengator.server.mobile.Core;
@@ -107,11 +108,11 @@ public class UserController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /user/login: " + e.getMessage());
+            LOGGER.error("REQUEST error -> /user/set: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /user/login: ", cause);
+            LOGGER.error("REQUEST error -> /user/set: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), cause.getMessage()));
         }
@@ -197,10 +198,9 @@ public class UserController extends BaseController {
     @RequestMapping(value = "/get/config/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getUserConfig(
-            @PathVariable("token") String token,
-            @PathVariable("uid") long uid,
-            @RequestParam(name = "d", defaultValue = "") String requestBody) {
+    public ResponseEntity getUserConfig(@PathVariable("token") String token,
+                                        @PathVariable("uid") long uid,
+                                        @RequestParam(name = "d", defaultValue = "") String requestBody) {
 
         try {
             if (requestBody == null)
@@ -241,6 +241,72 @@ public class UserController extends BaseController {
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
             LOGGER.error("REQUEST error -> /get/config: ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), cause.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/edit/sos/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity editSOS(@PathVariable("token") String token,
+                                  @PathVariable("uid") long uid,
+                                  @RequestParam(name = "d", defaultValue = "") String requestBody) {
+
+        try {
+            ConfirmRequest request =
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), ConfirmRequest.class);
+
+            if (request == null)
+                throw new UnknownException(HttpStatus.OK.value());
+
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    new BaseResponse(HttpStatus.OK.value(), "", null));
+        } catch (BaseException e) {
+            LOGGER.error("REQUEST error -> /edit/sos: " + e.getMessage());
+            return ResponseEntity.status(e.getCode()).body(
+                    new ErrorResponse(e.getLocalCode(), e.getMessage()));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> /edit/sos: ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), cause.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/edit/token/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity editToken(@PathVariable("token") String token,
+                                    @PathVariable("uid") long uid,
+                                    @RequestParam(name = "d", defaultValue = "") String requestBody) {
+
+        try {
+            UserEditTokenRequest request =
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), UserEditTokenRequest.class);
+
+            if (request == null)
+                throw new UnknownException(HttpStatus.OK.value());
+
+            UserPushToken userPushToken = this.getCore_().getDao().find(UserPushToken.class, uid);
+
+            if (userPushToken == null) {
+                userPushToken = new UserPushToken();
+                userPushToken.setUserId(uid);
+            }
+
+            userPushToken.setDevice(request.getOs().toUpperCase().contains("ANDROID") ?
+                    UserPushToken.tokenDevice.ANDROID.name() : UserPushToken.tokenDevice.IOS.name());
+            userPushToken.setToken(request.getFmsId());
+            this.getCore_().getDao().save(userPushToken);
+
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    new BaseResponse(HttpStatus.OK.value(), "", null));
+        } catch (BaseException e) {
+            LOGGER.error("REQUEST error -> /edit/token: " + e.getMessage());
+            return ResponseEntity.status(e.getCode()).body(
+                    new ErrorResponse(e.getLocalCode(), e.getMessage()));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> /edit/token: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), cause.getMessage()));
         }

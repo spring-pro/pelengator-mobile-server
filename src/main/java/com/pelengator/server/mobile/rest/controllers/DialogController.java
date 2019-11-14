@@ -25,13 +25,17 @@ import com.pelengator.server.mobile.rest.entity.request.chat.DialogSetReadReques
 import com.pelengator.server.mobile.rest.entity.request.device.DeviceTrackingRequest;
 import com.pelengator.server.mobile.rest.entity.response.common.VersionResponse;
 import com.pelengator.server.utils.ApplicationUtility;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 @RestController
@@ -52,6 +56,7 @@ public class DialogController extends BaseController {
             if (dialog == null) {
                 dialog = new Dialog();
                 dialog.setUserId(uid);
+                dialog.setCreatedAt(new Timestamp(new Date().getTime()));
                 this.getCore_().getDao().save(dialog);
 
                 return ResponseEntity.status(HttpStatus.OK).body(
@@ -85,19 +90,16 @@ public class DialogController extends BaseController {
                     BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
                             DialogSetReadRequest.class);
 
-            if (request != null && request.getIds().size() > 0) {
+            if (request != null && !StringUtils.isBlank(request.getIds())) {
                 this.getCore_().getDialogDao().setRead(
-                        Arrays.toString(request.getIds().toArray())
-                                .replace("[", "(")
-                                .replace("]", ")"),
-                        null
+                        "(".concat(request.getIds()).concat(")"), null
                 );
             }
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /chat/get/all: ", cause);
+            LOGGER.error("REQUEST error -> /chat/set/readed: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -131,8 +133,9 @@ public class DialogController extends BaseController {
             dialogMessage.setSenderType(DialogMessage.SENDER_TYPE_USER);
             dialogMessage.setSenderId(uid);
             dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_DEFAULT);
-            dialogMessage.setMessage(request.getMessage());
+            dialogMessage.setMessage(new String(request.getMessage().getBytes(), StandardCharsets.UTF_8));
             dialogMessage.setIsRead(false);
+            dialogMessage.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
             this.getCore_().getDao().save(dialogMessage);
 
             return ResponseEntity.status(HttpStatus.OK).body(

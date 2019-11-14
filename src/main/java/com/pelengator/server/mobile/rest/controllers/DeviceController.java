@@ -374,9 +374,49 @@ public class DeviceController extends BaseController {
             this.getCore_().getDao().save(commandHistory);
 
             switch (cmd) {
-                case "startEngine": {
+                case "engine_on": {
                     producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             KafkaProducer.AUTOFON_CMD_ENGINE_START.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                case "engine_off": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_ENGINE_STOP.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                case "arm_on": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_ARM_ENABLE.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                case "arm_off": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_ARM_DISABLE.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                case "block_on": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_ENGINE_LOCK.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                case "block_off": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_ENGINE_UNLOCK.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                case "alarm_on": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_SEARCH_CAR.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                case "service_on": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_SERVICE_ENABLE.toString(StandardCharsets.ISO_8859_1)).json());
+                    break;
+                }
+                case "service_off": {
+                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            KafkaProducer.AUTOFON_CMD_SERVICE_DISABLE.toString(StandardCharsets.ISO_8859_1)).json());
                     break;
                 }
                 default: {

@@ -249,16 +249,16 @@ public class UserController extends BaseController {
     @RequestMapping(value = "/edit/sos/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity editSOS(@PathVariable("token") String token,
+    public ResponseEntity editSos(@PathVariable("token") String token,
                                   @PathVariable("uid") long uid,
                                   @RequestParam(name = "d", defaultValue = "") String requestBody) {
 
         try {
-            ConfirmRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), ConfirmRequest.class);
-
-            if (request == null)
+            if (requestBody == null)
                 throw new UnknownException(HttpStatus.OK.value());
+
+            System.out.println("/edit/sos -> " + ApplicationUtility.decrypt(appAndroidKey, requestBody));
+
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", null));

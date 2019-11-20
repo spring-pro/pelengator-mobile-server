@@ -13,6 +13,7 @@
 package com.pelengator.server.mobile.rest.controllers;
 
 import com.google.gson.Gson;
+import com.pelengator.server.autofon.AutofonCommands;
 import com.pelengator.server.dao.postgresql.DevicePositionDao;
 import com.pelengator.server.dao.postgresql.DeviceStateDao;
 import com.pelengator.server.dao.postgresql.entity.CommandHistory;
@@ -26,6 +27,7 @@ import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 import com.pelengator.server.mobile.rest.entity.request.device.*;
+import com.pelengator.server.mobile.rest.entity.response.BaseCmdResponse;
 import com.pelengator.server.mobile.rest.entity.response.device.DeviceAddResponse;
 import com.pelengator.server.mobile.rest.entity.response.device.DevicePositionResponse;
 import com.pelengator.server.mobile.rest.entity.response.device.DeviceSettingsResponse;
@@ -281,7 +283,7 @@ public class DeviceController extends BaseController {
      * FREE_PUSH(210),
      * LABEL(212);
      *
-     * @param token - token from thw header (cookie at the time ...)
+     * @param token - token from thw header
      * @param uid   - user id
      * @return - result json
      */
@@ -354,7 +356,7 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/cmd/{cmd}/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getDevicePositionTracking(@PathVariable("cmd") String cmd,
+    public ResponseEntity sendCmd(@PathVariable("cmd") String cmd,
                                                     @PathVariable("token") String token,
                                                     @PathVariable("uid") long uid) {
 
@@ -373,50 +375,52 @@ public class DeviceController extends BaseController {
             commandHistory.setUpdatedAt(new Timestamp((new java.util.Date()).getTime()));
             this.getCore_().getDao().save(commandHistory);
 
+            BaseCmdResponse response = new BaseCmdResponse();
+
             switch (cmd) {
                 case "engine_on": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_ENGINE_START.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_ENGINE_START.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 case "engine_off": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_ENGINE_STOP.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_ENGINE_STOP.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 case "arm_on": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_ARM_ENABLE.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_ARM_ENABLE.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 case "arm_off": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_ARM_DISABLE.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_ARM_DISABLE.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 case "block_on": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_ENGINE_LOCK.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_ENGINE_LOCK.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 case "block_off": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_ENGINE_UNLOCK.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_ENGINE_UNLOCK.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 case "alarm_on": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_SEARCH_CAR.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_SEARCH_CAR.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 case "service_on": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_SERVICE_ENABLE.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_SERVICE_ENABLE.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 case "service_off": {
-                    producer.send(new TransportCommandObject(device.getImei(), commandHistory.getId(),
-                            KafkaProducer.AUTOFON_CMD_SERVICE_DISABLE.toString(StandardCharsets.ISO_8859_1)).json());
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                            AutofonCommands.AUTOFON_CMD_SERVICE_DISABLE.toString(StandardCharsets.ISO_8859_1)));
                     break;
                 }
                 default: {
@@ -424,9 +428,13 @@ public class DeviceController extends BaseController {
                 }
             }
 
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    new BaseResponse(HttpStatus.OK.value(), "",
-                            new HashMap<>(1).put("answer", "Команда отправлена!")));
+            if (response.getCode() == HttpStatus.OK.value()) {
+                return ResponseEntity.status(HttpStatus.OK).body(
+                        new BaseResponse(HttpStatus.OK.value(), "",
+                                new HashMap<>(1).put("answer", "Команда отправлена!")));
+            } else {
+                throw new Exception(response.getMessage());
+            }
         } catch (Throwable cause) {
             LOGGER.error("REQUEST error -> /device/cmd: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(

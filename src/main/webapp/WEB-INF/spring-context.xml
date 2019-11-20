@@ -18,9 +18,12 @@
          http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-4.0.xsd
          http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
 
-    <context:property-placeholder location="classpath:application.properties"/>
-
-    <bean name="core" class="com.pelengator.server.mobile.Core" init-method="init" destroy-method="stop"/>
+    <bean name="core" class="com.pelengator.server.mobile.Core" init-method="init" destroy-method="stop">
+        <property name="isDebugMode" value="false"/>
+        <property name="memcachedServers" value="127.0.0.1:11211"/>
+        <property name="kafkaAddress" value="127.0.0.1:9092"/>
+        <property name="gatewayCmdURL" value="http://192.168.0.184:8080/pelengator-gateway/cmd/send"/>
+    </bean>
 
     <bean name="tokenFilter" class="com.pelengator.server.mobile.rest.filter.TokenFilter">
         <property name="core_" ref="core"/>

@@ -14,7 +14,12 @@ package com.pelengator.server.mobile.rest.controllers;
 
 import com.google.gson.Gson;
 import com.pelengator.server.mobile.Core;
+import com.pelengator.server.mobile.kafka.TransportCommandObject;
+import com.pelengator.server.mobile.rest.entity.response.BaseCmdResponse;
 import org.apache.log4j.Logger;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
 
 public abstract class BaseController {
 
@@ -25,6 +30,21 @@ public abstract class BaseController {
     static String appAndroidKey = "s1dD87sdySPR12M2";
 
     private Core core_;
+
+    protected BaseCmdResponse sendAutofonCmdPost(TransportCommandObject data) {
+
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            HttpEntity<TransportCommandObject> requestBody = new HttpEntity<>(data);
+
+            ResponseEntity<BaseCmdResponse> result
+                    = restTemplate.postForEntity(core_.getGatewayCmdURL(), requestBody, BaseCmdResponse.class);
+
+            return result.getBody();
+        } catch (Exception ex) {
+            return new BaseCmdResponse(500, ex.getMessage(), null);
+        }
+    }
 
     public Core getCore_() {
         return core_;

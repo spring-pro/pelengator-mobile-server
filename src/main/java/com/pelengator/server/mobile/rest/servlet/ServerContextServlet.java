@@ -37,7 +37,7 @@ public class ServerContextServlet implements ServletContextListener {
 
     public void contextInitialized(ServletContextEvent contextEvent) {
         // initialize log4j here
-        //PropertyConfigurator.configure("/opt/pelengator/mobile-server/conf/log4j.properties");
-        PropertyConfigurator.configure("C:/Projects/!_Pelengator/conf/log4j.properties");
+        /*PropertyConfigurator.configure("/opt/pelengator/mobile-server/conf/log4j.properties");*/
+        /*PropertyConfigurator.configure("C:/Projects/!_Pelengator/conf/log4j.properties");*/
     }
 }

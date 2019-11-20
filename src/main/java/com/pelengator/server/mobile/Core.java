@@ -17,6 +17,7 @@ import com.pelengator.server.dao.postgresql.entity.Device;
 import com.pelengator.server.dao.postgresql.entity.User;
 import com.pelengator.server.dao.postgresql.entity.UserDevice;
 import com.pelengator.server.exception.mobile.TokenExpiredException;
+import com.pelengator.server.memcached.MemcachedClient;
 import com.pelengator.server.utils.ApplicationUtility;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpStatus;
 
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -31,19 +33,22 @@ public class Core {
 
     private static final Logger LOGGER = getLogger(Core.class.getSimpleName());
 
-    public static boolean isIsDebugMode;
+    private String kafkaAddress;
+    private String memcachedServers;
+    private static boolean isIsDebugMode;
+    private String gatewayCmdURL;
 
     private Map<Long, Integer> userSmsMapCacheL3 = new ConcurrentHashMap<>();
     private Map<String, User> tokenUserMapCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, Device> userCurrentDeviceCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, UserDevice> userDeviceAddRequestCacheL3 = new ConcurrentHashMap<>();
 
-    //private Dao dao = new Dao("/opt/pelengator/mobile-server/conf/hibernate.cfg.xml");
-    private Dao dao = new Dao("c:\\Projects\\!_Pelengator\\pelengator-mobile-server\\conf\\hibernate.cfg.xml");
+    private Dao dao = new Dao();
     private DeviceDao deviceDao = new DeviceDao();
     private UserDeviceDao userDeviceDao = new UserDeviceDao();
     private DeviceStateDao deviceStateDao = new DeviceStateDao();
     private DevicePositionDao devicePositionDao = new DevicePositionDao();
+    private DialogDao dialogDao = new DialogDao();
 
     public static Logger getLogger(String className) {
         Logger l = Logger.getLogger(className);
@@ -53,7 +58,12 @@ public class Core {
     }
 
     public void init() {
-
+        try {
+            /*MemcachedClient memcachedClient = new MemcachedClient(Arrays.asList(memcachedServers.split(",")));
+            memcachedClient.connect();*/
+        } catch (Exception ex) {
+            LOGGER.error(ex.getMessage());
+        }
     }
 
     public String registerUserToken(User user) throws Exception {
@@ -65,14 +75,14 @@ public class Core {
     public long getUserIdByToken(String token) throws Exception {
         User user = tokenUserMapCacheL3.get(token);
         if (user == null)
-            throw new TokenExpiredException(HttpStatus.NON_AUTHORITATIVE_INFORMATION.value());
+            throw new TokenExpiredException(HttpStatus.OK.value());
         return user.getId();
     }
 
     public void setUserCurrentDevice(long userId, long imei) throws Exception {
         Device device = dao.find(Device.class, "imei", imei);
         if (device == null)
-            throw new TokenExpiredException(HttpStatus.NON_AUTHORITATIVE_INFORMATION.value());
+            throw new TokenExpiredException(HttpStatus.OK.value());
         userCurrentDeviceCacheL3.put(userId, device);
     }
 
@@ -95,6 +105,30 @@ public class Core {
 
     }
 
+    public String getKafkaAddress() {
+        return kafkaAddress;
+    }
+
+    public void setKafkaAddress(String kafkaAddress) {
+        this.kafkaAddress = kafkaAddress;
+    }
+
+    public void setMemcachedServers(String memcachedServers) {
+        this.memcachedServers = memcachedServers;
+    }
+
+    public void setIsDebugMode(boolean isDebugMode) {
+        isIsDebugMode = isDebugMode;
+    }
+
+    public String getGatewayCmdURL() {
+        return gatewayCmdURL;
+    }
+
+    public void setGatewayCmdURL(String gatewayCmdURL) {
+        this.gatewayCmdURL = gatewayCmdURL;
+    }
+
     public String getCookieByName(HttpServletRequest request, String cookieName) {
         if (cookieName == null) {
             return "";
@@ -111,10 +145,6 @@ public class Core {
         }
 
         return "";
-    }
-
-    public void setIsDebugMode(boolean isDebugMode) {
-        isIsDebugMode = isDebugMode;
     }
 
     public Map<Long, Integer> getUserSmsMapCacheL3() {
@@ -139,5 +169,9 @@ public class Core {
 
     public DevicePositionDao getDevicePositionDao() {
         return devicePositionDao;
+    }
+
+    public DialogDao getDialogDao() {
+        return dialogDao;
     }
 }

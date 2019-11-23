@@ -15,13 +15,12 @@ package com.pelengator.server.mobile.rest.controllers;
 import com.google.gson.Gson;
 import com.pelengator.server.autofon.AutofonCommands;
 import com.pelengator.server.dao.postgresql.DevicePositionDao;
-import com.pelengator.server.dao.postgresql.DeviceStateDao;
+import com.pelengator.server.dao.postgresql.dto.DeviceStateForMobile;
 import com.pelengator.server.dao.postgresql.entity.CommandHistory;
 import com.pelengator.server.dao.postgresql.entity.Device;
 import com.pelengator.server.dao.postgresql.entity.UserDevice;
 import com.pelengator.server.exception.mobile.*;
 import com.pelengator.server.mobile.Core;
-import com.pelengator.server.mobile.kafka.KafkaProducer;
 import com.pelengator.server.mobile.kafka.TransportCommandObject;
 import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
@@ -35,13 +34,11 @@ import com.pelengator.server.mobile.rest.entity.response.device.DeviceStateRespo
 import com.pelengator.server.utils.ApplicationUtility;
 import org.apache.log4j.Logger;
 import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
-import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.List;
@@ -52,9 +49,6 @@ import java.util.Map;
 public class DeviceController extends BaseController {
 
     private static final Logger LOGGER = Core.getLogger(DeviceController.class.getSimpleName());
-
-    @Autowired
-    private KafkaProducer producer;
 
     @RequestMapping(value = "/add/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
@@ -84,7 +78,6 @@ public class DeviceController extends BaseController {
                 userDevice.setCarBrand(request.getCarBrand());
                 userDevice.setCarModel(request.getCarModel());
                 userDevice.setCarNumber(request.getCarNumber());
-                userDevice.setCarMaintenanceDate(new Date(System.currentTimeMillis()));
                 userDevice.setCreatedAt(new Timestamp(System.currentTimeMillis()));
                 userDevice.setConfirmed(false);
 
@@ -300,19 +293,22 @@ public class DeviceController extends BaseController {
             DeviceStateResponse data = gson.fromJson(stateTemp, DeviceStateResponse.class);
             List<Map<String, Object>> bottomButtonsList = data.getButtons().get("bottom");
 
-            DeviceStateDao.DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
+            DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
 
             if (deviceState != null) {
-                int carMaintenanceStateDays = (int) (
-                        (ApplicationUtility.getDateInSecondsWithAddMonthCount(deviceState.getCarMaintenanceDate(), 12)
-                                - ApplicationUtility.getDateInSeconds()) / (60 * 60 * 24));
+                int kitMaintenanceStateDays = deviceState.getKitMaintenanceDate() == null ? 0 :
+                        ((int) ((ApplicationUtility.getDateInSecondsWithAddMonthCount(
+                                deviceState.getKitMaintenanceDate(), 12)
+                                        - ApplicationUtility.getDateInSeconds()) / (60 * 60 * 24)));
 
-                int payFullPeriodDays = (int) (ApplicationUtility.getDateInSecondsWithAddMonthCount(
+                int payFullPeriodDays = deviceState.getPayPeriodMonths() == null ? 0 :
+                        ((int) (ApplicationUtility.getDateInSecondsWithAddMonthCount(
                         deviceState.getPayDate(), deviceState.getPayPeriodMonths())
-                        - ApplicationUtility.getDateInSeconds(deviceState.getPayDate())) / (60 * 60 * 24);
-                int payStateDays = payFullPeriodDays -
+                        - ApplicationUtility.getDateInSeconds(deviceState.getPayDate())) / (60 * 60 * 24));
+
+                int payStateDays = deviceState.getPayDate() == null ? 0 : (payFullPeriodDays -
                         ((int) (ApplicationUtility.getDateInSeconds() -
-                                ApplicationUtility.getDateInSeconds(deviceState.getPayDate())) / (60 * 60 * 24));
+                                ApplicationUtility.getDateInSeconds(deviceState.getPayDate())) / (60 * 60 * 24)));
 
                 bottomButtonsList.forEach(item -> {
                     if (201 == Math.round((Double) item.get("icon_id"))) {
@@ -321,8 +317,8 @@ public class DeviceController extends BaseController {
                         item.put("percent", Math.round((deviceState.getExternalPower()) * 100 / 15));
                     } else if (208 == Math.round((Double) item.get("icon_id"))) {
                         item.put("icon_id", 208);
-                        item.put("text", (Math.max(carMaintenanceStateDays, 0)) + " дн.");
-                        item.put("percent", Math.min(carMaintenanceStateDays * 100 / 365, 100));
+                        item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
+                        item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
                     } else if (209 == Math.round((Double) item.get("icon_id"))) {
                         item.put("icon_id", 209);
                         item.put("text", (Math.max(payStateDays, 0)) + " дн.");
@@ -357,8 +353,8 @@ public class DeviceController extends BaseController {
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
     public ResponseEntity sendCmd(@PathVariable("cmd") String cmd,
-                                                    @PathVariable("token") String token,
-                                                    @PathVariable("uid") long uid) {
+                                  @PathVariable("token") String token,
+                                  @PathVariable("uid") long uid) {
 
         try {
             Device device = this.getCore_().getUserCurrentDevice(uid);
@@ -458,7 +454,7 @@ public class DeviceController extends BaseController {
                 throw new UnknownException(HttpStatus.OK.value());
 
             DevicePositionResponse data = new DevicePositionResponse();
-            DeviceStateDao.DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
+            DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
 
             if (deviceState != null) {
                 data.setPositionUpdatedAt(ApplicationUtility.getDateTimeInSeconds(deviceState.getPositionLastUpdatedAt()));
@@ -492,7 +488,7 @@ public class DeviceController extends BaseController {
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
-            DeviceStateDao.DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
+            DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
 
             Timestamp dateFrom;
             Timestamp dateTo;

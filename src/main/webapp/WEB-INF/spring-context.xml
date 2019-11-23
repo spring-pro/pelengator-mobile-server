@@ -23,6 +23,7 @@
         <property name="memcachedServers" value="127.0.0.1:11211"/>
         <property name="kafkaAddress" value="127.0.0.1:9092"/>
         <property name="gatewayCmdURL" value="http://192.168.0.184:8080/pelengator-gateway/cmd/send"/>
+        <property name="hazelcastServers" value="hazelcast"/>
     </bean>
 
     <bean name="tokenFilter" class="com.pelengator.server.mobile.rest.filter.TokenFilter">

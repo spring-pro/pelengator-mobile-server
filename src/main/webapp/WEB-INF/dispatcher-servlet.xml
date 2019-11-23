@@ -25,5 +25,5 @@ http://www.springframework.org/schema/mvc/spring-mvc-4.0.xsd">
     <context:component-scan base-package="com.pelengator.server.mobile" />
     <mvc:annotation-driven/>
 
-    <import resource="spring-context.xml"/>
+    <import resource="file:/opt/pelengator/mobile-server/conf/spring-context.xml"/>
 </beans>

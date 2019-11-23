@@ -13,11 +13,12 @@
 package com.pelengator.server.mobile;
 
 import com.pelengator.server.dao.postgresql.*;
+import com.pelengator.server.dao.postgresql.dto.DeviceStateForMobile;
 import com.pelengator.server.dao.postgresql.entity.Device;
 import com.pelengator.server.dao.postgresql.entity.User;
 import com.pelengator.server.dao.postgresql.entity.UserDevice;
 import com.pelengator.server.exception.mobile.TokenExpiredException;
-import com.pelengator.server.memcached.MemcachedClient;
+import com.pelengator.server.hazelcast.HazelcastClient;
 import com.pelengator.server.utils.ApplicationUtility;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -25,7 +26,6 @@ import org.springframework.http.HttpStatus;
 
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -43,12 +43,15 @@ public class Core {
     private Map<Long, Device> userCurrentDeviceCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, UserDevice> userDeviceAddRequestCacheL3 = new ConcurrentHashMap<>();
 
-    private Dao dao = new Dao();
+    private Dao dao = new Dao("/opt/pelengator/mobile-server/conf/hibernate.cfg.xml");
     private DeviceDao deviceDao = new DeviceDao();
     private UserDeviceDao userDeviceDao = new UserDeviceDao();
     private DeviceStateDao deviceStateDao = new DeviceStateDao();
     private DevicePositionDao devicePositionDao = new DevicePositionDao();
     private DialogDao dialogDao = new DialogDao();
+
+    private String hazelcastServers;
+    private HazelcastClient hazelcastClient;
 
     public static Logger getLogger(String className) {
         Logger l = Logger.getLogger(className);
@@ -59,8 +62,8 @@ public class Core {
 
     public void init() {
         try {
-            /*MemcachedClient memcachedClient = new MemcachedClient(Arrays.asList(memcachedServers.split(",")));
-            memcachedClient.connect();*/
+            hazelcastClient = new HazelcastClient(hazelcastServers);
+            hazelcastClient.connect();
         } catch (Exception ex) {
             LOGGER.error(ex.getMessage());
         }
@@ -90,10 +93,13 @@ public class Core {
         return userCurrentDeviceCacheL3.get(userId);
     }
 
-    public DeviceStateDao.DeviceStateForMobile getUserCurrentDeviceState(long userId) throws Exception {
+    public DeviceStateForMobile getUserCurrentDeviceState(long userId) throws Exception {
         Device device = userCurrentDeviceCacheL3.get(userId);
         if (device != null) {
-            return deviceStateDao.getDeviceState(userId, device.getId());
+            DeviceStateForMobile deviceStateForMobile = hazelcastClient.getDeviceStateForMobile(device.getId());
+            if (deviceStateForMobile == null)
+                deviceStateForMobile = deviceStateDao.getDeviceState(userId, device.getId());
+            return deviceStateForMobile;
         } else return null;
     }
 
@@ -102,7 +108,8 @@ public class Core {
     }
 
     public void stop() {
-
+        if (hazelcastClient != null)
+            hazelcastClient.shutdown();
     }
 
     public String getKafkaAddress() {
@@ -173,5 +180,17 @@ public class Core {
 
     public DialogDao getDialogDao() {
         return dialogDao;
+    }
+
+    public String getHazelcastServers() {
+        return hazelcastServers;
+    }
+
+    public void setHazelcastServers(String hazelcastServers) {
+        this.hazelcastServers = hazelcastServers;
+    }
+
+    public HazelcastClient getHazelcastClient() {
+        return hazelcastClient;
     }
 }

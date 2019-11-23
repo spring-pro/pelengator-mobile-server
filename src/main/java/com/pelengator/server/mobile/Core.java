@@ -34,7 +34,6 @@ public class Core {
     private static final Logger LOGGER = getLogger(Core.class.getSimpleName());
 
     private String kafkaAddress;
-    private String memcachedServers;
     private static boolean isIsDebugMode;
     private String gatewayCmdURL;
 
@@ -118,10 +117,6 @@ public class Core {
 
     public void setKafkaAddress(String kafkaAddress) {
         this.kafkaAddress = kafkaAddress;
-    }
-
-    public void setMemcachedServers(String memcachedServers) {
-        this.memcachedServers = memcachedServers;
     }
 
     public void setIsDebugMode(boolean isDebugMode) {

@@ -20,9 +20,8 @@
 
     <bean name="core" class="com.pelengator.server.mobile.Core" init-method="init" destroy-method="stop">
         <property name="isDebugMode" value="false"/>
-        <property name="memcachedServers" value="127.0.0.1:11211"/>
-        <property name="kafkaAddress" value="127.0.0.1:9092"/>
-        <property name="gatewayCmdURL" value="http://192.168.0.184:8080/pelengator-gateway/cmd/send"/>
+        <property name="kafkaAddress" value="kafka:9092"/>
+        <property name="gatewayCmdURL" value="http://gateway:8080/pelengator-gateway/cmd/send"/>
         <property name="hazelcastServers" value="hazelcast"/>
     </bean>
 

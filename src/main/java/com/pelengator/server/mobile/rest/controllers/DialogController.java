@@ -22,8 +22,6 @@ import com.pelengator.server.mobile.rest.ErrorResponse;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 import com.pelengator.server.mobile.rest.entity.request.chat.DialogSendMessageRequest;
 import com.pelengator.server.mobile.rest.entity.request.chat.DialogSetReadRequest;
-import com.pelengator.server.mobile.rest.entity.request.device.DeviceTrackingRequest;
-import com.pelengator.server.mobile.rest.entity.response.common.VersionResponse;
 import com.pelengator.server.utils.ApplicationUtility;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
@@ -34,7 +32,6 @@ import org.springframework.web.bind.annotation.*;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -106,18 +103,19 @@ public class DialogController extends BaseController {
     }
 
     @RequestMapping(value = "/send/{token}/{uid}",
-            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+            method = RequestMethod.POST,
+            produces = "application/json;charset=UTF-8")
     @ResponseBody
     public ResponseEntity sendMessage(@PathVariable("token") String token,
                                       @PathVariable("uid") long uid,
-                                      @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                      @RequestParam("d") String d) {
 
         try {
-            if (requestBody == null)
+            if (d == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
             DialogSendMessageRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, d),
                             DialogSendMessageRequest.class);
 
             Dialog dialog = this.getCore_().getDao().find(Dialog.class, "userId", uid);
@@ -133,7 +131,7 @@ public class DialogController extends BaseController {
             dialogMessage.setSenderType(DialogMessage.SENDER_TYPE_USER);
             dialogMessage.setSenderId(uid);
             dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_DEFAULT);
-            dialogMessage.setMessage(new String(request.getMessage().getBytes(), StandardCharsets.UTF_8));
+            dialogMessage.setMessage(request.getMessage());
             dialogMessage.setIsRead(false);
             dialogMessage.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
             this.getCore_().getDao().save(dialogMessage);

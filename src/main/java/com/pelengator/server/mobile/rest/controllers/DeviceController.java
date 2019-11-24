@@ -15,6 +15,7 @@ package com.pelengator.server.mobile.rest.controllers;
 import com.google.gson.Gson;
 import com.pelengator.server.autofon.AutofonCommands;
 import com.pelengator.server.dao.postgresql.DevicePositionDao;
+import com.pelengator.server.dao.postgresql.DeviceStateDao;
 import com.pelengator.server.dao.postgresql.dto.DeviceStateForMobile;
 import com.pelengator.server.dao.postgresql.entity.CommandHistory;
 import com.pelengator.server.dao.postgresql.entity.Device;
@@ -66,31 +67,29 @@ public class DeviceController extends BaseController {
                 throw new UnknownException(HttpStatus.OK.value());
 
             DeviceAddResponse data = new DeviceAddResponse();
-            Device device = this.getCore_().getUserCurrentDevice(uid);
+            Device device = this.getCore_().getDao().find(Device.class, "imei", request.getDeviceImei());
 
-            if (device != null) {
-                if (!device.getImei().equals(request.getDeviceImei()))
-                    throw new IncorrectIMEIException(HttpStatus.OK.value());
+            if (device == null)
+                throw new IncorrectIMEIException(HttpStatus.OK.value());
 
-                UserDevice userDevice = new UserDevice();
-                userDevice.setUserId(uid);
-                userDevice.setDeviceId(device.getId());
-                userDevice.setCarBrand(request.getCarBrand());
-                userDevice.setCarModel(request.getCarModel());
-                userDevice.setCarNumber(request.getCarNumber());
-                userDevice.setCreatedAt(new Timestamp(System.currentTimeMillis()));
-                userDevice.setConfirmed(false);
+            UserDevice userDevice = new UserDevice();
+            userDevice.setUserId(uid);
+            userDevice.setDeviceId(device.getId());
+            userDevice.setCarBrand(request.getCarBrand());
+            userDevice.setCarModel(request.getCarModel());
+            userDevice.setCarNumber(request.getCarNumber());
+            userDevice.setCreatedAt(new Timestamp(System.currentTimeMillis()));
+            userDevice.setConfirmed(false);
 
-                try {
-                    this.getCore_().getDao().save(userDevice);
-                } catch (ConstraintViolationException cve) {
-                    throw new DataAlreadyExistsException(HttpStatus.OK.value(),
-                            "Устройство с заданным IMEI уже привязано к текущему пользователю!");
-                }
-
-                data.setConfirmType("pass");
-                data.setDeviceId(userDevice.getId());
+            try {
+                this.getCore_().getDao().save(userDevice);
+            } catch (ConstraintViolationException cve) {
+                throw new DataAlreadyExistsException(HttpStatus.OK.value(),
+                        "Устройство с заданным IMEI уже привязано к текущему пользователю!");
             }
+
+            data.setConfirmType("pass");
+            data.setDeviceId(userDevice.getId());
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
@@ -299,12 +298,12 @@ public class DeviceController extends BaseController {
                 int kitMaintenanceStateDays = deviceState.getKitMaintenanceDate() == null ? 0 :
                         ((int) ((ApplicationUtility.getDateInSecondsWithAddMonthCount(
                                 deviceState.getKitMaintenanceDate(), 12)
-                                        - ApplicationUtility.getDateInSeconds()) / (60 * 60 * 24)));
+                                - ApplicationUtility.getDateInSeconds()) / (60 * 60 * 24)));
 
                 int payFullPeriodDays = deviceState.getPayPeriodMonths() == null ? 0 :
                         ((int) (ApplicationUtility.getDateInSecondsWithAddMonthCount(
-                        deviceState.getPayDate(), deviceState.getPayPeriodMonths())
-                        - ApplicationUtility.getDateInSeconds(deviceState.getPayDate())) / (60 * 60 * 24));
+                                deviceState.getPayDate(), deviceState.getPayPeriodMonths())
+                                - ApplicationUtility.getDateInSeconds(deviceState.getPayDate())) / (60 * 60 * 24));
 
                 int payStateDays = deviceState.getPayDate() == null ? 0 : (payFullPeriodDays -
                         ((int) (ApplicationUtility.getDateInSeconds() -
@@ -322,7 +321,7 @@ public class DeviceController extends BaseController {
                     } else if (209 == Math.round((Double) item.get("icon_id"))) {
                         item.put("icon_id", 209);
                         item.put("text", (Math.max(payStateDays, 0)) + " дн.");
-                        item.put("percent", Math.min(payStateDays * 100 / payFullPeriodDays, 100));
+                        item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
                     } else if (205 == Math.round((Double) item.get("icon_id"))) {
                         item.put("icon_id", 205);
                         item.put("text", deviceState.getGsmQuality() + " шт.");

@@ -12,6 +12,7 @@
 
 package com.pelengator.server.mobile.rest.filter;
 
+import com.pelengator.server.exception.mobile.BaseException;
 import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.rest.ErrorResponse;
 import org.apache.commons.lang3.StringUtils;
@@ -41,7 +42,6 @@ public class TokenFilter implements Filter {
         String apiMethodName = request.getPathInfo();
         try {
             LOGGER.debug("Request -> " + request.getPathInfo());
-            System.out.println("Request -> " + request.getPathInfo());
 
             request.setCharacterEncoding("UTF-8");
             response.setCharacterEncoding("UTF-8");
@@ -73,7 +73,7 @@ public class TokenFilter implements Filter {
     private void unauthorized(HttpServletResponse response) throws IOException {
         try {
             response.setHeader("Content-Type", "application/json");
-            response.setStatus(HttpStatus.OK.value());
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
             response.getWriter().write(new ErrorResponse(HttpStatus.NON_AUTHORITATIVE_INFORMATION.value(),
                     "Время сессии истекло!").json());
             response.getWriter().flush();

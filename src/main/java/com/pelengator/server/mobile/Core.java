@@ -15,8 +15,8 @@ package com.pelengator.server.mobile;
 import com.pelengator.server.dao.postgresql.*;
 import com.pelengator.server.dao.postgresql.dto.DeviceStateForMobile;
 import com.pelengator.server.dao.postgresql.entity.Device;
-import com.pelengator.server.dao.postgresql.entity.User;
 import com.pelengator.server.dao.postgresql.entity.UserDevice;
+import com.pelengator.server.dao.postgresql.entity.UserToken;
 import com.pelengator.server.exception.mobile.TokenExpiredException;
 import com.pelengator.server.hazelcast.HazelcastClient;
 import com.pelengator.server.utils.ApplicationUtility;
@@ -26,6 +26,7 @@ import org.springframework.http.HttpStatus;
 
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -38,7 +39,7 @@ public class Core {
     private String gatewayCmdURL;
 
     private Map<Long, Integer> userSmsMapCacheL3 = new ConcurrentHashMap<>();
-    private Map<String, User> tokenUserMapCacheL3 = new ConcurrentHashMap<>();
+    private Map<String, Long> tokenUserMapCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, Device> userCurrentDeviceCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, UserDevice> userDeviceAddRequestCacheL3 = new ConcurrentHashMap<>();
 
@@ -48,6 +49,7 @@ public class Core {
     private DeviceStateDao deviceStateDao = new DeviceStateDao();
     private DevicePositionDao devicePositionDao = new DevicePositionDao();
     private DialogDao dialogDao = new DialogDao();
+    private UserTokenDao userTokenDao = new UserTokenDao();
 
     private String hazelcastServers;
     private HazelcastClient hazelcastClient;
@@ -63,22 +65,25 @@ public class Core {
         try {
             hazelcastClient = new HazelcastClient(hazelcastServers);
             hazelcastClient.connect();
+
+            restoreUserTokensFromDB();
         } catch (Exception ex) {
             LOGGER.error(ex.getMessage());
         }
     }
 
-    public String registerUserToken(User user) throws Exception {
-        String token = ApplicationUtility.getToken(String.valueOf(user.getId()));
-        tokenUserMapCacheL3.put(token, user);
+    public String registerUserToken(Long userId) throws Exception {
+        String token = ApplicationUtility.getToken(String.valueOf(userId));
+        userTokenDao.addToken(userId, token, null);
+        tokenUserMapCacheL3.put(token, userId);
         return token;
     }
 
-    public long getUserIdByToken(String token) throws Exception {
-        User user = tokenUserMapCacheL3.get(token);
-        if (user == null)
-            throw new TokenExpiredException(HttpStatus.OK.value());
-        return user.getId();
+    public Long getUserIdByToken(String token) throws Exception {
+        Long userId = tokenUserMapCacheL3.get(token);
+        if (userId == null)
+            throw new TokenExpiredException(HttpStatus.UNAUTHORIZED.value());
+        return userId;
     }
 
     public void setUserCurrentDevice(long userId, long imei) throws Exception {
@@ -96,8 +101,11 @@ public class Core {
         Device device = userCurrentDeviceCacheL3.get(userId);
         if (device != null) {
             DeviceStateForMobile deviceStateForMobile = hazelcastClient.getDeviceStateForMobile(device.getId());
-            if (deviceStateForMobile == null)
+            if (deviceStateForMobile == null) {
                 deviceStateForMobile = deviceStateDao.getDeviceState(userId, device.getId());
+                LOGGER.debug("Read DEVICE STATE from DB -> STATUS: " + deviceStateForMobile.getStatus());
+            } else
+                LOGGER.debug("Read DEVICE STATE from Hazelcast -> STATUS: " + deviceStateForMobile.getStatus());
             return deviceStateForMobile;
         } else return null;
     }
@@ -106,9 +114,30 @@ public class Core {
         userDeviceAddRequestCacheL3.put(deviceId, userDevice);
     }
 
+    public void restoreUserTokensFromDB() {
+        long time0 = System.currentTimeMillis();
+        Integer count = null;
+
+        try {
+            List<UserToken> userTokenList = dao.get(UserToken.class);
+            for (UserToken userToken : userTokenList) {
+                tokenUserMapCacheL3.put(userToken.getToken(), userToken.getUserId());
+            }
+            count = tokenUserMapCacheL3.size();
+        } catch (Throwable t) {
+            LOGGER.error(t);
+        }
+
+        if (count == null) {
+            LOGGER.error("DB[user_token] read: fail");
+        } else {
+            long time = System.currentTimeMillis() - time0;
+            String detailedTime = time / 1000 >= 1 ? (time / 1000 + "s " + time % 1000) + "ms" : time + "ms";
+            LOGGER.info("DB[user_token] read: " + count + ", " + detailedTime);
+        }
+    }
+
     public void stop() {
-        if (hazelcastClient != null)
-            hazelcastClient.shutdown();
     }
 
     public String getKafkaAddress() {

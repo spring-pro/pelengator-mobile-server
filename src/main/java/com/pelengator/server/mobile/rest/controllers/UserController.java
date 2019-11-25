@@ -104,7 +104,7 @@ public class UserController extends BaseController {
                 throw new UserNotFoundException(HttpStatus.OK.value());
 
             UserSetResponse data = new UserSetResponse();
-            data.setSid(this.getCore_().registerUserToken(user));
+            data.setSid(this.getCore_().registerUserToken(user.getId()));
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
@@ -180,7 +180,7 @@ public class UserController extends BaseController {
             }
 
             ConfirmResponse data = new ConfirmResponse();
-            data.setSid(this.getCore_().registerUserToken(user));
+            data.setSid(this.getCore_().registerUserToken(user.getId()));
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));

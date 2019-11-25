@@ -12,16 +12,18 @@
 
 <beans xmlns="http://www.springframework.org/schema/beans"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:util="http://www.springframework.org/schema/util"
        xmlns:task="http://www.springframework.org/schema/task"
-       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+         http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.0.xsd
          http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-4.0.xsd
-         http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+         http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd">
 
     <bean name="core" class="com.pelengator.server.mobile.Core" init-method="init" destroy-method="stop">
         <property name="isDebugMode" value="false"/>
         <property name="kafkaAddress" value="kafka:9092"/>
-        <property name="gatewayCmdURL" value="http://gateway:8080/pelengator-gateway/cmd/send"/>
+        <property name="gatewayCmdURL" value="http://pgateway:8080/pelengator-gateway/cmd/send"/>
         <property name="hazelcastServers" value="hazelcast"/>
     </bean>
 

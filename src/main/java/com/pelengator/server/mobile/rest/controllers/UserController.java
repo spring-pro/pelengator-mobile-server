@@ -12,9 +12,12 @@
 
 package com.pelengator.server.mobile.rest.controllers;
 
-import com.pelengator.server.dao.postgresql.DeviceDao;
+import com.pelengator.server.dao.postgresql.UserDao;
 import com.pelengator.server.dao.postgresql.entity.User;
 import com.pelengator.server.dao.postgresql.entity.UserPushToken;
+import com.pelengator.server.dao.postgresql.entity.UserSettings;
+import com.pelengator.server.exception.mobile.BaseException;
+import com.pelengator.server.exception.mobile.UnknownException;
 import com.pelengator.server.exception.mobile.UserNotFoundException;
 import com.pelengator.server.exception.mobile.WrongSmsCodeException;
 import com.pelengator.server.mobile.Core;
@@ -26,8 +29,6 @@ import com.pelengator.server.mobile.rest.entity.request.user.SMSCodeRequest;
 import com.pelengator.server.mobile.rest.entity.request.user.UserLoginRequest;
 import com.pelengator.server.mobile.rest.entity.request.user.UserSetRequest;
 import com.pelengator.server.mobile.rest.entity.response.user.*;
-import com.pelengator.server.exception.mobile.BaseException;
-import com.pelengator.server.exception.mobile.UnknownException;
 import com.pelengator.server.utils.ApplicationUtility;
 import com.pelengator.server.utils.sms.SmsSender;
 import org.apache.commons.lang3.StringUtils;
@@ -36,10 +37,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.sql.Timestamp;
+import java.util.*;
 
 @RestController
 @RequestMapping("/user")
@@ -59,8 +58,12 @@ public class UserController extends BaseController {
 
             User user = this.getCore_().getDao().find(User.class, "phone", request.getPhoneNum());
 
-            if (user == null)
-                throw new UserNotFoundException(HttpStatus.OK.value());
+            if (user == null) {
+                user = new User();
+                user.setPhone(request.getPhoneNum());
+                user.setTypeId(1L);
+                user.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+            }
 
             int smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
 
@@ -206,12 +209,13 @@ public class UserController extends BaseController {
             if (requestBody == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
-            List<DeviceDao.UserConfigForMobileEntity> alarmDevicesList =
-                    this.getCore_().getDeviceDao().getUserConfigForMobile(uid);
+            List<UserDao.UserConfigForMobileEntity> alarmDevicesList =
+                    this.getCore_().getUserDao().getUserConfigForMobile(uid);
 
+            UserSettings userSettings = this.getCore_().getDao().find(UserSettings.class, uid);
             List<Map> alarmDevicesResultList = new ArrayList<>();
             int index = 0;
-            for (DeviceDao.UserConfigForMobileEntity item : alarmDevicesList) {
+            for (UserDao.UserConfigForMobileEntity item : alarmDevicesList) {
                 Map<String, Object> alarmDeviceItem = new HashMap<>();
                 alarmDeviceItem.put("index", ++index);
                 alarmDeviceItem.put("id", item.getDeviceId().toString());
@@ -231,7 +235,11 @@ public class UserController extends BaseController {
 
             UserGetConfigResponse data = new UserGetConfigResponse();
             data.getAlarmDevices().addAll(alarmDevicesResultList);
-            //data.getSosPhones().add("222222222");
+
+            if (userSettings != null && !StringUtils.isBlank(userSettings.getSosPhones()))
+                data.getSosPhones().addAll(Arrays.asList(userSettings.getSosPhones().split(",", -1)));
+            else
+                data.getSosPhones().addAll(Arrays.asList("", "", ""));
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
@@ -257,8 +265,28 @@ public class UserController extends BaseController {
             if (requestBody == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
-            System.out.println("/edit/sos -> " + ApplicationUtility.decrypt(appAndroidKey, requestBody));
+            UserEditSosRequest request =
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), UserEditSosRequest.class);
 
+            UserSettings userSettings = this.getCore_().getDao().find(UserSettings.class, uid);
+
+            if (userSettings == null) {
+                userSettings = new UserSettings();
+                userSettings.setUserId(uid);
+            }
+
+            String[] sosPhones = StringUtils.isBlank(userSettings.getSosPhones()) ? new String[]{"", "", ""} :
+                    userSettings.getSosPhones().split(",", -1);
+
+            if (request.getPhoneIndex0() != null)
+                sosPhones[0] = StringUtils.trimToEmpty(request.getPhoneIndex0());
+            if (request.getPhoneIndex1() != null)
+                sosPhones[1] = StringUtils.trimToEmpty(request.getPhoneIndex1());
+            if (request.getPhoneIndex2() != null)
+                sosPhones[2] = StringUtils.trimToEmpty(request.getPhoneIndex2());
+
+            userSettings.setSosPhones(StringUtils.join(sosPhones, ","));
+            this.getCore_().getDao().save(userSettings);
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", null));

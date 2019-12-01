@@ -24,7 +24,7 @@
         <property name="isDebugMode" value="false"/>
         <property name="kafkaAddress" value="kafka:9092"/>
         <property name="gatewayCmdURL" value="http://pgateway:8080/pelengator-gateway/cmd/send"/>
-        <property name="hazelcastServers" value="hazelcast"/>
+        <property name="hazelcastServers" value="phazelcast"/>
     </bean>
 
     <bean name="tokenFilter" class="com.pelengator.server.mobile.rest.filter.TokenFilter">

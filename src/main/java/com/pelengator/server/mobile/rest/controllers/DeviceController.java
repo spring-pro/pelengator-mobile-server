@@ -15,11 +15,7 @@ package com.pelengator.server.mobile.rest.controllers;
 import com.google.gson.Gson;
 import com.pelengator.server.autofon.AutofonCommands;
 import com.pelengator.server.dao.postgresql.DevicePositionDao;
-import com.pelengator.server.dao.postgresql.DeviceStateDao;
-import com.pelengator.server.dao.postgresql.dto.DeviceStateForMobile;
-import com.pelengator.server.dao.postgresql.entity.CommandHistory;
-import com.pelengator.server.dao.postgresql.entity.Device;
-import com.pelengator.server.dao.postgresql.entity.UserDevice;
+import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.*;
 import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.kafka.TransportCommandObject;
@@ -40,7 +36,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +69,9 @@ public class DeviceController extends BaseController {
 
             if (device == null)
                 throw new IncorrectIMEIException(HttpStatus.OK.value());
+
+            if (device.getKitMaintenanceDate() == null)
+                device.setKitMaintenanceDate(new Date(ApplicationUtility.getDateInSecondsWithAddYearsCount(1)));
 
             UserDevice userDevice = new UserDevice();
             userDevice.setUserId(uid);
@@ -287,27 +288,145 @@ public class DeviceController extends BaseController {
                                          @PathVariable("uid") long uid) {
 
         try {
-            String stateTemp = "{\"data_ts\":1571137306,\"buttons\":{\"bottom\":[{\"icon_id\":201,\"text\":\"0,00 v\",\"percent\":0,\"enable\":1},{\"icon_id\":208,\"text\":\"0 дн.\",\"percent\":0,\"enable\":1},{\"icon_id\":209,\"text\":\"0 дн.\",\"percent\":0,\"enable\":1},{\"icon_id\":205,\"text\":\"умеренно\",\"percent\":0,\"enable\":1},{\"icon_id\":206,\"text\":\"без связи\",\"percent\":0,\"enable\":1},{\"icon_id\":202,\"text\":\"0,00 v\",\"percent\":0,\"enable\":1}],\"main\":[{\"id\":19,\"state_id\":2,\"enable\":1},{\"id\":6,\"state_id\":2,\"enable\":1},{\"id\":1,\"state_id\":0,\"enable\":0},{\"id\":5,\"state_id\":0,\"enable\":1},{\"id\":3,\"enable\":1},{\"id\":12,\"enable\":1},{\"id\":5,\"state_id\":0,\"enable\":1},{\"id\":18,\"enable\":1},{\"id\":4,\"state_id\":0,\"enable\":1},{\"id\":17,\"enable\":1},{\"id\":13,\"enable\":1},{\"id\":2,\"enable\":1}]},\"test_status\":{\"stat\":0},\"all_statuses\":{\"service\":false},\"messages\":[]}";
+            String stateTemp = "{\n" +
+                    "  \"data_ts\": 1571137306,\n" +
+                    "  \"buttons\": {\n" +
+                    "    \"bottom\": [\n" +
+                    "      {\n" +
+                    "        \"icon_id\": 201,\n" +
+                    "        \"text\": \"0,00 v\",\n" +
+                    "        \"percent\": 0,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"icon_id\": 208,\n" +
+                    "        \"text\": \"0 дн.\",\n" +
+                    "        \"percent\": 0,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"icon_id\": 209,\n" +
+                    "        \"text\": \"0 дн.\",\n" +
+                    "        \"percent\": 0,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"icon_id\": 205,\n" +
+                    "        \"text\": \"умеренно\",\n" +
+                    "        \"percent\": 0,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"icon_id\": 206,\n" +
+                    "        \"text\": \"без связи\",\n" +
+                    "        \"percent\": 0,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"icon_id\": 202,\n" +
+                    "        \"text\": \"0,00 v\",\n" +
+                    "        \"percent\": 0,\n" +
+                    "        \"enable\": 1\n" +
+                    "      }\n" +
+                    "    ],\n" +
+                    "    \"main\": [\n" +
+                    "      {\n" +
+                    "        \"id\": 19,\n" +
+                    "        \"state_id\": 1,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 1,\n" +
+                    "        \"state_id\": 0,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 5,\n" +
+                    "        \"state_id\": 1,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 3,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 12,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 18,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 4,\n" +
+                    "        \"state_id\": 0,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 17,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 13,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 2,\n" +
+                    "        \"enable\": 1\n" +
+                    "      }\n" +
+                    "    ]\n" +
+                    "  },\n" +
+                    "  \"test_status\": {\n" +
+                    "    \"stat\": 0\n" +
+                    "  },\n" +
+                    "  \"all_statuses\": {\n" +
+                    "    \"service\": false\n" +
+                    "  },\n" +
+                    "  \"messages\": []\n" +
+                    "}";
 
             DeviceStateResponse data = gson.fromJson(stateTemp, DeviceStateResponse.class);
             List<Map<String, Object>> bottomButtonsList = data.getButtons().get("bottom");
 
-            DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
+            DeviceState deviceState =
+                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
 
             if (deviceState != null) {
-                int kitMaintenanceStateDays = deviceState.getKitMaintenanceDate() == null ? 0 :
+                Device device = this.getCore_().getDevice(deviceState.getDeviceId());
+                Payment payment = this.getCore_().getPaymentTelematics(deviceState.getDeviceId());
+
+                Map<String, Map<String, Object>> cmdIpProgress =
+                        this.getCore_().getDeviceCmdInProgress().get(deviceState.getDeviceId());
+
+                data.getButtons().get("main").forEach(item -> {
+                    if (19 == Math.round((Double) item.get("id"))) {
+                        this.getCore_().getCmdBtnStat(cmdIpProgress, item, "arm",
+                                deviceState.isArmStatus());
+                    } else if (1 == Math.round((Double) item.get("id"))) {
+                        this.getCore_().getCmdBtnStat(cmdIpProgress, item, "engine",
+                                deviceState.isTachometerStatus());
+                    } else if (5 == Math.round((Double) item.get("id"))) {
+                        this.getCore_().getCmdBtnStat(cmdIpProgress, item, "block",
+                                deviceState.isAhyStatus());
+                    } else if (4 == Math.round((Double) item.get("id"))) {
+                        this.getCore_().getCmdBtnStat(cmdIpProgress, item, "service",
+                                deviceState.isValetStatus());
+                    }
+                });
+
+                int kitMaintenanceStateDays = device.getKitMaintenanceDate() == null ? 0 :
                         ((int) ((ApplicationUtility.getDateInSecondsWithAddMonthCount(
-                                deviceState.getKitMaintenanceDate(), 12)
+                                device.getKitMaintenanceDate(), 12)
                                 - ApplicationUtility.getDateInSeconds()) / (60 * 60 * 24)));
 
-                int payFullPeriodDays = deviceState.getPayPeriodMonths() == null ? 0 :
+                int payFullPeriodDays = payment == null ? 0 :
                         ((int) (ApplicationUtility.getDateInSecondsWithAddMonthCount(
-                                deviceState.getPayDate(), deviceState.getPayPeriodMonths())
-                                - ApplicationUtility.getDateInSeconds(deviceState.getPayDate())) / (60 * 60 * 24));
+                                payment.getUpdatedAt(), payment.getPayPeriodMonths())
+                                - ApplicationUtility.getDateInSeconds(payment.getUpdatedAt())) / (60 * 60 * 24));
 
-                int payStateDays = deviceState.getPayDate() == null ? 0 : (payFullPeriodDays -
+                int payStateDays = payment == null ? 0 : (payFullPeriodDays -
                         ((int) (ApplicationUtility.getDateInSeconds() -
-                                ApplicationUtility.getDateInSeconds(deviceState.getPayDate())) / (60 * 60 * 24)));
+                                ApplicationUtility.getDateInSeconds(payment.getUpdatedAt())) / (60 * 60 * 24)));
 
                 bottomButtonsList.forEach(item -> {
                     if (201 == Math.round((Double) item.get("icon_id"))) {
@@ -366,8 +485,8 @@ public class DeviceController extends BaseController {
             commandHistory.setSenderType(CommandHistory.CommandSenderTypeEnum.USER.name());
             commandHistory.setSent(false);
             commandHistory.setErrMsg("");
-            commandHistory.setCreatedAt(new Timestamp((new java.util.Date()).getTime()));
-            commandHistory.setUpdatedAt(new Timestamp((new java.util.Date()).getTime()));
+            /*commandHistory.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+            commandHistory.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));*/
             this.getCore_().getDao().save(commandHistory);
 
             BaseCmdResponse response = new BaseCmdResponse();
@@ -376,31 +495,37 @@ public class DeviceController extends BaseController {
                 case "engine_on": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             AutofonCommands.AUTOFON_CMD_ENGINE_START.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "engine", false);
                     break;
                 }
                 case "engine_off": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             AutofonCommands.AUTOFON_CMD_ENGINE_STOP.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "engine", true);
                     break;
                 }
                 case "arm_on": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             AutofonCommands.AUTOFON_CMD_ARM_ENABLE.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "arm", false);
                     break;
                 }
                 case "arm_off": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             AutofonCommands.AUTOFON_CMD_ARM_DISABLE.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "arm", true);
                     break;
                 }
                 case "block_on": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             AutofonCommands.AUTOFON_CMD_ENGINE_LOCK.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "block", false);
                     break;
                 }
                 case "block_off": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             AutofonCommands.AUTOFON_CMD_ENGINE_UNLOCK.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "block", true);
                     break;
                 }
                 case "alarm_on": {
@@ -411,11 +536,13 @@ public class DeviceController extends BaseController {
                 case "service_on": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             AutofonCommands.AUTOFON_CMD_SERVICE_ENABLE.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "service", false);
                     break;
                 }
                 case "service_off": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
                             AutofonCommands.AUTOFON_CMD_SERVICE_DISABLE.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "service", true);
                     break;
                 }
                 default: {
@@ -424,16 +551,18 @@ public class DeviceController extends BaseController {
             }
 
             if (response.getCode() == HttpStatus.OK.value()) {
+                Map<String, String> data = new HashMap<>(1);
+                data.put("answer", "Команда отправлена!");
+
                 return ResponseEntity.status(HttpStatus.OK).body(
-                        new BaseResponse(HttpStatus.OK.value(), "",
-                                new HashMap<>(1).put("answer", "Команда отправлена!")));
+                        new BaseResponse(HttpStatus.OK.value(), "", data));
             } else {
                 throw new Exception(response.getMessage());
             }
         } catch (Throwable cause) {
             LOGGER.error("REQUEST error -> /device/cmd: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    new ErrorResponse(0, cause.getMessage()));
+                    new ErrorResponse(HttpStatus.NOT_IMPLEMENTED.value(), cause.getMessage()));
         }
     }
 
@@ -453,7 +582,8 @@ public class DeviceController extends BaseController {
                 throw new UnknownException(HttpStatus.OK.value());
 
             DevicePositionResponse data = new DevicePositionResponse();
-            DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
+            DeviceState deviceState =
+                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
 
             if (deviceState != null) {
                 data.setPositionUpdatedAt(ApplicationUtility.getDateTimeInSeconds(deviceState.getPositionLastUpdatedAt()));
@@ -487,7 +617,8 @@ public class DeviceController extends BaseController {
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
-            DeviceStateForMobile deviceState = this.getCore_().getUserCurrentDeviceState(uid);
+            DeviceState deviceState =
+                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
 
             Timestamp dateFrom;
             Timestamp dateTo;
@@ -495,8 +626,21 @@ public class DeviceController extends BaseController {
                 dateFrom = new Timestamp(ApplicationUtility.getDateInSeconds() * 1000);
                 dateTo = new Timestamp((ApplicationUtility.getDateInSecondsWithAddDaysCount(1) - 1) * 1000);
             } else {
-                dateFrom = new Timestamp(request.getFrom() * 1000);
-                dateTo = new Timestamp(request.getTo() * 1000);
+                Calendar calendar = Calendar.getInstance();
+                calendar.setTimeInMillis(request.getFrom() * 1000);
+
+                if (calendar.get(Calendar.HOUR_OF_DAY) != 0)
+                    calendar.add(Calendar.HOUR_OF_DAY, 24 - calendar.get(Calendar.HOUR_OF_DAY));
+
+                dateFrom = new Timestamp(calendar.getTimeInMillis());
+
+
+                calendar.setTimeInMillis(request.getTo() * 1000);
+
+                if (calendar.get(Calendar.HOUR_OF_DAY) != 23)
+                    calendar.add(Calendar.HOUR_OF_DAY, 23 - calendar.get(Calendar.HOUR_OF_DAY));
+
+                dateTo = new Timestamp(calendar.getTimeInMillis());
             }
 
             List<DevicePositionDao.DevisePositionTracking> data =
@@ -505,8 +649,6 @@ public class DeviceController extends BaseController {
                             dateFrom,
                             dateTo
                     );
-
-            System.out.println(gson.toJson(data));
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {

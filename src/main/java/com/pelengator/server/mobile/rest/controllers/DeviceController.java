@@ -29,6 +29,7 @@ import com.pelengator.server.mobile.rest.entity.response.device.DevicePositionRe
 import com.pelengator.server.mobile.rest.entity.response.device.DeviceSettingsResponse;
 import com.pelengator.server.mobile.rest.entity.response.device.DeviceStateResponse;
 import com.pelengator.server.utils.ApplicationUtility;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -49,6 +50,77 @@ public class DeviceController extends BaseController {
 
     private static final Logger LOGGER = Core.getLogger(DeviceController.class.getSimpleName());
 
+    @RequestMapping(value = "/get/available_payments/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity getAvailablePayments(@PathVariable("token") String token,
+                                               @PathVariable("uid") long uid,
+                                               @RequestParam(name = "d", defaultValue = "") String requestBody) {
+
+        try {
+            Device device;
+
+            if (!StringUtils.isBlank(requestBody)) {
+                DeviceGetAvailablePaymentsRequest request =
+                        BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
+                                DeviceGetAvailablePaymentsRequest.class);
+
+                if (request == null)
+                    throw new UnknownException(HttpStatus.OK.value());
+
+                device = this.getCore_().getDao().find(Device.class, request.getDeviceId());
+            } else {
+                device = this.getCore_().getDao().find(Device.class,
+                        this.getCore_().getUserCurrentDevice(uid).getId());
+            }
+
+            Payment paymentActivation = this.getCore_().getPaymentDao().getPayedPayment(
+                    device.getId(), Payment.PAY_TYPE_ACTIVATION);
+
+            Payment paymentTelematics = this.getCore_().getPaymentDao().getPayedPayment(
+                    device.getId(), Payment.PAY_TYPE_TELEMATICS);
+
+            Map<String, Object> activation = new HashMap<>();
+            activation.put("text", device.getIsActivated() ? "" : "20000 р.");
+            activation.put("color", device.getIsActivated() ? PAYMENT_ITEM_STATE_INACTIVE : PAYMENT_ITEM_STATE_NEED_PAY);
+
+            Map<String, Object> telematics = new HashMap<>();
+            if (!device.getIsActivated()) {
+                telematics.put("text", paymentTelematics == null ? "не оплачено" : "оплачено");
+                telematics.put("color", PAYMENT_ITEM_STATE_INACTIVE);
+            } else {
+                if (paymentTelematics == null) {
+                    telematics.put("text", "3900 р.");
+                    telematics.put("color", PAYMENT_ITEM_STATE_NEED_PAY);
+                } else {
+                    int payFullPeriodDays = getPayTelematicsFullPeriodDays(paymentTelematics);
+                    int payStateDays = getPayTelematicsStateDays(paymentTelematics, payFullPeriodDays);
+                    telematics.put("text", payStateDays + "дн.");
+                    telematics.put("color", PAYMENT_ITEM_STATE_ACTIVE);
+                }
+            }
+
+            /*Map<String, Object> installment = new HashMap<>();
+            installment.put("text", "text");
+            installment.put("color", 2);*/
+
+            Map<String, Map<String, Object>> data = new HashMap<>();
+            data.put("activation", activation);
+            data.put("telematics", telematics);
+            /*data.put("installment", installment);*/
+
+            return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
+        } catch (BaseException e) {
+            LOGGER.error("REQUEST error -> /device/get/available_payments: " + e.getMessage());
+            return ResponseEntity.status(e.getCode()).body(
+                    new ErrorResponse(e.getLocalCode(), e.getMessage()));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> /device/get/available_payments: ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
     @RequestMapping(value = "/add/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
@@ -58,7 +130,7 @@ public class DeviceController extends BaseController {
 
         try {
             DeviceAddRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
                             DeviceAddRequest.class);
 
             if (request == null)
@@ -113,7 +185,7 @@ public class DeviceController extends BaseController {
 
         try {
             DeviceAddConfirmRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
                             DeviceAddConfirmRequest.class);
 
             if (request == null)
@@ -153,7 +225,7 @@ public class DeviceController extends BaseController {
 
         try {
             DeviceEditRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
                             DeviceEditRequest.class);
 
             if (request == null)
@@ -189,7 +261,7 @@ public class DeviceController extends BaseController {
 
         try {
             DeviceDeleteRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
                             DeviceDeleteRequest.class);
 
             if (request == null)
@@ -223,7 +295,7 @@ public class DeviceController extends BaseController {
 
         try {
             DeviceSetRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), DeviceSetRequest.class);
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), DeviceSetRequest.class);
 
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
@@ -336,6 +408,10 @@ public class DeviceController extends BaseController {
                     "        \"enable\": 1\n" +
                     "      },\n" +
                     "      {\n" +
+                    "        \"id\": 6,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
                     "        \"id\": 1,\n" +
                     "        \"state_id\": 0,\n" +
                     "        \"enable\": 1\n" +
@@ -351,6 +427,11 @@ public class DeviceController extends BaseController {
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 12,\n" +
+                    "        \"enable\": 1\n" +
+                    "      },\n" +
+                    "      {\n" +
+                    "        \"id\": 5,\n" +
+                    "        \"state_id\": 1,\n" +
                     "        \"enable\": 1\n" +
                     "      },\n" +
                     "      {\n" +
@@ -419,14 +500,8 @@ public class DeviceController extends BaseController {
                                 device.getKitMaintenanceDate(), 12)
                                 - ApplicationUtility.getDateInSeconds()) / (60 * 60 * 24)));
 
-                int payFullPeriodDays = payment == null ? 0 :
-                        ((int) (ApplicationUtility.getDateInSecondsWithAddMonthCount(
-                                payment.getUpdatedAt(), payment.getPayPeriodMonths())
-                                - ApplicationUtility.getDateInSeconds(payment.getUpdatedAt())) / (60 * 60 * 24));
-
-                int payStateDays = payment == null ? 0 : (payFullPeriodDays -
-                        ((int) (ApplicationUtility.getDateInSeconds() -
-                                ApplicationUtility.getDateInSeconds(payment.getUpdatedAt())) / (60 * 60 * 24)));
+                int payFullPeriodDays = getPayTelematicsFullPeriodDays(payment);
+                int payStateDays = getPayTelematicsStateDays(payment, payFullPeriodDays);
 
                 bottomButtonsList.forEach(item -> {
                     if (201 == Math.round((Double) item.get("icon_id"))) {
@@ -485,8 +560,8 @@ public class DeviceController extends BaseController {
             commandHistory.setSenderType(CommandHistory.CommandSenderTypeEnum.USER.name());
             commandHistory.setSent(false);
             commandHistory.setErrMsg("");
-            /*commandHistory.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
-            commandHistory.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));*/
+            commandHistory.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+            commandHistory.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
             this.getCore_().getDao().save(commandHistory);
 
             BaseCmdResponse response = new BaseCmdResponse();
@@ -575,7 +650,7 @@ public class DeviceController extends BaseController {
 
         try {
             DevicePositionRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
                             DevicePositionRequest.class);
 
             if (request == null)
@@ -611,7 +686,7 @@ public class DeviceController extends BaseController {
 
         try {
             DeviceTrackingRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
                             DeviceTrackingRequest.class);
 
             if (request == null)

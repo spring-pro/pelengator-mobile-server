@@ -29,7 +29,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Date;
@@ -84,7 +83,7 @@ public class DialogController extends BaseController {
                 throw new UnknownException(HttpStatus.OK.value());
 
             DialogSetReadRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
                             DialogSetReadRequest.class);
 
             if (request != null && !StringUtils.isBlank(request.getIds())) {
@@ -115,7 +114,7 @@ public class DialogController extends BaseController {
                 throw new UnknownException(HttpStatus.OK.value());
 
             DialogSendMessageRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, d),
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, d),
                             DialogSendMessageRequest.class);
 
             Dialog dialog = this.getCore_().getDao().find(Dialog.class, "userId", uid);

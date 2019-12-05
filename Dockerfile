@@ -36,6 +36,7 @@ COPY ./tomcat_conf/private_key.pem /opt/tomcat/conf/private_key.pem
 COPY ./tomcat_conf/chain.pem /opt/tomcat/conf/chain.pem
 
 # copy app and conf
+COPY ./app/resources /opt/tomcat/webapps/resources
 COPY ./app/ROOT.war /opt/tomcat/webapps/ROOT.war
 COPY ./app/conf  /opt/pelengator/mobile-server/conf
 

@@ -13,7 +13,6 @@
 package com.pelengator.server.mobile;
 
 import com.pelengator.server.dao.postgresql.*;
-import com.pelengator.server.dao.postgresql.dto.DeviceStateForMobile;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.TokenExpiredException;
 import com.pelengator.server.hazelcast.HazelcastClient;
@@ -37,8 +36,9 @@ public class Core {
     private static boolean isIsDebugMode;
     private String gatewayCmdURL;
 
-    private Map<Long, Integer> userSmsMapCacheL3 = new ConcurrentHashMap<>();
-    private Map<String, Long> tokenUserMapCacheL3 = new ConcurrentHashMap<>();
+    private Map<String, Integer> userSmsMapCacheL3 = new ConcurrentHashMap<>();
+    private Map<String, String> userPhoneTokenMapCacheL3 = new ConcurrentHashMap<>();
+    private Map<String, User> phoneUserMapCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, Device> userCurrentDeviceCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, UserDevice> userDeviceAddRequestCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, Map<String, Map<String, Object>>> deviceCmdInProgress = new ConcurrentHashMap<>();
@@ -48,6 +48,7 @@ public class Core {
     private UserDeviceDao userDeviceDao = new UserDeviceDao();
     private DeviceStateDao deviceStateDao = new DeviceStateDao();
     private DevicePositionDao devicePositionDao = new DevicePositionDao();
+    private PaymentDao paymentDao = new PaymentDao();
     private DialogDao dialogDao = new DialogDao();
     private UserTokenDao userTokenDao = new UserTokenDao();
 
@@ -72,18 +73,30 @@ public class Core {
         }
     }
 
-    public String registerUserToken(Long userId) throws Exception {
-        String token = ApplicationUtility.getToken(String.valueOf(userId));
-        userTokenDao.addToken(userId, token, null);
-        tokenUserMapCacheL3.put(token, userId);
+    public String registerUserToken(User user) throws Exception {
+        String token = ApplicationUtility.getToken(String.valueOf(user.getPhone()));
+        userTokenDao.addToken(user.getPhone(), token, null);
+        userPhoneTokenMapCacheL3.put(user.getPhone(), token);
+        phoneUserMapCacheL3.put(user.getPhone(), user);
         return token;
     }
 
     public Long getUserIdByToken(String token) throws Exception {
-        Long userId = tokenUserMapCacheL3.get(token);
-        if (userId == null)
+        String phone = null;
+
+        for (Map.Entry item : userPhoneTokenMapCacheL3.entrySet()) {
+            if (item.getValue().equals(token))
+                phone = (String) item.getKey();
+        }
+
+        if (phone == null)
             throw new TokenExpiredException(HttpStatus.UNAUTHORIZED.value());
-        return userId;
+
+        User user = phoneUserMapCacheL3.get(phone);
+        if (user == null)
+            user = dao.find(User.class, "phone", phone);
+
+        return user.getId();
     }
 
     public void setUserCurrentDevice(long userId, long imei) throws Exception {
@@ -116,7 +129,7 @@ public class Core {
     public Payment getPaymentTelematics(long deviceId) throws Exception {
         Payment payment = hazelcastClient.getPaymentTelematics(deviceId);
         if (payment == null)
-            payment = dao.getPaymentByDeviceAndPayType(deviceId, Payment.PAY_TYPE_TELEMATICS);
+            payment = paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_TELEMATICS);
 
         return payment;
     }
@@ -124,7 +137,7 @@ public class Core {
     public Payment getPaymentActivation(long deviceId) throws Exception {
         Payment payment = hazelcastClient.getPaymentTelematics(deviceId);
         if (payment == null)
-            payment = dao.getPaymentByDeviceAndPayType(deviceId, Payment.PAY_TYPE_ACTIVATION);
+            payment = paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_ACTIVATION);
 
         return payment;
     }
@@ -140,15 +153,19 @@ public class Core {
         try {
             List<UserToken> userTokenList = dao.get(UserToken.class);
             for (UserToken userToken : userTokenList) {
-                tokenUserMapCacheL3.put(userToken.getToken(), userToken.getUserId());
+                User user = dao.find(User.class, "phone", userToken.getPhone());
+                if (user != null) {
+                    userPhoneTokenMapCacheL3.put(user.getPhone(), userToken.getToken());
+                    phoneUserMapCacheL3.put(user.getPhone(), user);
+                }
             }
-            count = tokenUserMapCacheL3.size();
+            count = phoneUserMapCacheL3.size();
         } catch (Throwable t) {
             LOGGER.error(t);
         }
 
         if (count == null) {
-            LOGGER.error("DB[user_token] read: fail");
+            LOGGER.error("DB[user_token] read: fail!");
         } else {
             long time = System.currentTimeMillis() - time0;
             String detailedTime = time / 1000 >= 1 ? (time / 1000 + "s " + time % 1000) + "ms" : time + "ms";
@@ -224,7 +241,7 @@ public class Core {
         return "";
     }
 
-    public Map<Long, Integer> getUserSmsMapCacheL3() {
+    public Map<String, Integer> getUserSmsMapCacheL3() {
         return userSmsMapCacheL3;
     }
 
@@ -250,6 +267,10 @@ public class Core {
 
     public DialogDao getDialogDao() {
         return dialogDao;
+    }
+
+    public PaymentDao getPaymentDao() {
+        return paymentDao;
     }
 
     public String getHazelcastServers() {

@@ -21,7 +21,7 @@
          http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd">
 
     <bean name="core" class="com.pelengator.server.mobile.Core" init-method="init" destroy-method="stop">
-        <property name="isDebugMode" value="false"/>
+        <property name="isDebugMode" value="true"/>
         <property name="kafkaAddress" value="kafka:9092"/>
         <property name="gatewayCmdURL" value="http://pgateway:8080/pelengator-gateway/cmd/send"/>
         <property name="hazelcastServers" value="phazelcast"/>
@@ -42,6 +42,8 @@
     <bean name="commonController" class="com.pelengator.server.mobile.rest.controllers.CommonController"
           parent="baseController"/>
     <bean name="dialogController" class="com.pelengator.server.mobile.rest.controllers.DialogController"
+          parent="baseController"/>
+    <bean name="paymentController" class="com.pelengator.server.mobile.rest.controllers.PaymentController"
           parent="baseController"/>
 
     <task:scheduler id="tasksScheduler" pool-size="10"/>

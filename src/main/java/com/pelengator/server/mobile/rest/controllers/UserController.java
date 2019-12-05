@@ -37,6 +37,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletResponse;
 import java.sql.Timestamp;
 import java.util.*;
 
@@ -51,7 +53,7 @@ public class UserController extends BaseController {
     public ResponseEntity userLogin(@RequestParam(name = "d", defaultValue = "") String requestBody) {
         try {
             UserLoginRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), UserLoginRequest.class);
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), UserLoginRequest.class);
 
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
@@ -61,9 +63,18 @@ public class UserController extends BaseController {
             if (user == null) {
                 user = new User();
                 user.setPhone(request.getPhoneNum());
+                user.setAccountNum("");
                 user.setTypeId(1L);
                 user.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+
+                getCore_().getDao().save(user);
             }
+
+            user.setAccountNum(
+                    ApplicationUtility.milliSecondsToFormattedString(
+                            ApplicationUtility.getCurrentTimeStampGMT_0(), null, "yyMMdd")
+                            .concat(String.format("%06d", user.getId())));
+            getCore_().getDao().save(user);
 
             int smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
 
@@ -73,7 +84,7 @@ public class UserController extends BaseController {
             if (!smsSender.send())
                 throw new UnknownException(HttpStatus.OK.value());
 
-            this.getCore_().getUserSmsMapCacheL3().put(user.getId(), smsCode);
+            this.getCore_().getUserSmsMapCacheL3().put(user.getPhone(), smsCode);
 
             UserLoginResponse data = new UserLoginResponse();
             data.setUserId(user.getId());
@@ -93,10 +104,11 @@ public class UserController extends BaseController {
 
     @RequestMapping(value = "/set", method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity userSet(@RequestParam(name = "d", defaultValue = "") String requestBody) {
+    public ResponseEntity userSet(HttpServletResponse response,
+                                  @RequestParam(name = "d", defaultValue = "") String requestBody) {
         try {
             UserSetRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), UserSetRequest.class);
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), UserSetRequest.class);
 
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
@@ -106,8 +118,16 @@ public class UserController extends BaseController {
             if (user == null)
                 throw new UserNotFoundException(HttpStatus.OK.value());
 
+            String token = this.getCore_().registerUserToken(user);
+
             UserSetResponse data = new UserSetResponse();
-            data.setSid(this.getCore_().registerUserToken(user.getId()));
+            data.setSid(token);
+
+            // TODO Set cookie for iOS!
+            Cookie cookie = new Cookie("PHPSESSID", token);
+            cookie.setPath("/");
+            response.addCookie(cookie);
+
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
@@ -126,7 +146,7 @@ public class UserController extends BaseController {
     public ResponseEntity getSMSCode(@RequestParam(name = "d", defaultValue = "") String requestBody) {
         try {
             SMSCodeRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), SMSCodeRequest.class);
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), SMSCodeRequest.class);
 
             if (request == null || StringUtils.isBlank(request.getPhoneNum()))
                 throw new UnknownException(HttpStatus.OK.value());
@@ -144,7 +164,7 @@ public class UserController extends BaseController {
             if (!smsSender.send())
                 throw new UnknownException(HttpStatus.OK.value());
 
-            this.getCore_().getUserSmsMapCacheL3().put(user.getId(), smsCode);
+            this.getCore_().getUserSmsMapCacheL3().put(user.getPhone(), smsCode);
 
             SMSCodeResponse data = new SMSCodeResponse();
             data.setUserId(user.getId());
@@ -164,10 +184,11 @@ public class UserController extends BaseController {
 
     @RequestMapping(value = "/confirm", method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity confirmSMSCode(@RequestParam(name = "d", defaultValue = "") String requestBody) {
+    public ResponseEntity confirmSMSCode(HttpServletResponse response,
+                                         @RequestParam(name = "d", defaultValue = "") String requestBody) {
         try {
             ConfirmRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), ConfirmRequest.class);
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), ConfirmRequest.class);
 
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
@@ -177,13 +198,20 @@ public class UserController extends BaseController {
             if (user == null)
                 throw new UserNotFoundException(HttpStatus.OK.value());
 
-            Integer smsCode = this.getCore_().getUserSmsMapCacheL3().remove(request.getUserId());
+            Integer smsCode = this.getCore_().getUserSmsMapCacheL3().remove(user.getPhone());
             if (smsCode == null || !smsCode.equals(request.getSmsCode())) {
                 throw new WrongSmsCodeException(HttpStatus.OK.value());
             }
 
+            String token = this.getCore_().registerUserToken(user);
+
             ConfirmResponse data = new ConfirmResponse();
-            data.setSid(this.getCore_().registerUserToken(user.getId()));
+            data.setSid(token);
+
+            // TODO Set cookie for iOS!
+            Cookie cookie = new Cookie("PHPSESSID", token);
+            cookie.setPath("/");
+            response.addCookie(cookie);
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
@@ -266,7 +294,7 @@ public class UserController extends BaseController {
                 throw new UnknownException(HttpStatus.OK.value());
 
             UserEditSosRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), UserEditSosRequest.class);
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), UserEditSosRequest.class);
 
             UserSettings userSettings = this.getCore_().getDao().find(UserSettings.class, uid);
 
@@ -310,7 +338,7 @@ public class UserController extends BaseController {
 
         try {
             UserEditTokenRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appAndroidKey, requestBody), UserEditTokenRequest.class);
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), UserEditTokenRequest.class);
 
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());

@@ -12,7 +12,6 @@
 
 package com.pelengator.server.mobile.rest.filter;
 
-import com.pelengator.server.exception.mobile.BaseException;
 import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.rest.ErrorResponse;
 import org.apache.commons.lang3.StringUtils;
@@ -31,7 +30,8 @@ public class TokenFilter implements Filter {
     private Core core_;
 
     @Override
-    public void init(FilterConfig filterConfig) throws ServletException { }
+    public void init(FilterConfig filterConfig) throws ServletException {
+    }
 
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse,
@@ -50,7 +50,9 @@ public class TokenFilter implements Filter {
                     && !apiMethodName.equals("/user/login")
                     && !apiMethodName.equals("/user/set")
                     && !apiMethodName.equals("/user/get/sms_code")
-                    && !apiMethodName.equals("/user/confirm")) {
+                    && !apiMethodName.equals("/user/confirm")
+                    && !apiMethodName.equals("/payment/payment_page")
+                    && !apiMethodName.equals("/payment/status")) {
 
                 String token = core_.getCookieByName(request, "PHPSESSID");
 
@@ -74,8 +76,8 @@ public class TokenFilter implements Filter {
         try {
             response.setHeader("Content-Type", "application/json");
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.getWriter().write(new ErrorResponse(HttpStatus.NON_AUTHORITATIVE_INFORMATION.value(),
-                    "Время сессии истекло!").json());
+            response.getWriter().write(new ErrorResponse(HttpStatus.UNAUTHORIZED.value(),
+                    "Session is expired!").json());
             response.getWriter().flush();
             response.getWriter().close();
         } catch (Throwable cause) {
@@ -84,7 +86,8 @@ public class TokenFilter implements Filter {
     }
 
     @Override
-    public void destroy() { }
+    public void destroy() {
+    }
 
     public Core getCore_() {
         return core_;

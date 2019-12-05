@@ -10,23 +10,23 @@
  * Author: Maxim Zemskov, https://www.linkedin.com/in/mzemskov/
  */
 
-package com.pelengator.server.mobile.rest.entity.request.user;
+package com.pelengator.server.mobile.rest.entity.request.device;
 
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.annotations.Since;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 
-public class UserSetRequest extends BaseEntity {
+public class DeviceGetAvailablePaymentsRequest extends BaseEntity {
 
     @Since(1.0)
-    @SerializedName("login")
-    private String login;
+    @SerializedName("device_id")
+    private Long deviceId;
 
-    public String getLogin() {
-        return login;
+    public Long getDeviceId() {
+        return deviceId;
     }
 
-    public void setLogin(String login) {
-        this.login = login;
+    public void setDeviceId(Long deviceId) {
+        this.deviceId = deviceId;
     }
 }

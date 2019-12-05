@@ -23,7 +23,7 @@ public class UserLoginRequest extends BaseEntity {
     private String phoneNum;
 
     public String getPhoneNum() {
-        return "7" + phoneNum;
+        return phoneNum;
     }
 
     public void setPhoneNum(String phoneNum) {

@@ -16,10 +16,7 @@ import com.pelengator.server.dao.postgresql.UserDao;
 import com.pelengator.server.dao.postgresql.entity.User;
 import com.pelengator.server.dao.postgresql.entity.UserPushToken;
 import com.pelengator.server.dao.postgresql.entity.UserSettings;
-import com.pelengator.server.exception.mobile.BaseException;
-import com.pelengator.server.exception.mobile.UnknownException;
-import com.pelengator.server.exception.mobile.UserNotFoundException;
-import com.pelengator.server.exception.mobile.WrongSmsCodeException;
+import com.pelengator.server.exception.mobile.*;
 import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
@@ -80,8 +77,7 @@ public class UserController extends BaseController {
 
             LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
 
-            SmsSender smsSender = new SmsSender(user.getPhone(), "Pelengator confirm code: " + smsCode);
-            if (!smsSender.send())
+            if (!SmsSender.send(user.getPhone(), "Pelengator confirm code: " + smsCode))
                 throw new UnknownException(HttpStatus.OK.value());
 
             this.getCore_().getUserSmsMapCacheL3().put(user.getPhone(), smsCode);
@@ -160,8 +156,7 @@ public class UserController extends BaseController {
 
             LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
 
-            SmsSender smsSender = new SmsSender(user.getPhone(), "Pelengator confirm code: " + smsCode);
-            if (!smsSender.send())
+            if (!SmsSender.send(user.getPhone(), "Pelengator confirm code: " + smsCode))
                 throw new UnknownException(HttpStatus.OK.value());
 
             this.getCore_().getUserSmsMapCacheL3().put(user.getPhone(), smsCode);
@@ -343,17 +338,30 @@ public class UserController extends BaseController {
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
-            UserPushToken userPushToken = this.getCore_().getDao().find(UserPushToken.class, uid);
+            UserPushToken userPushToken = this.getCore_().getDao().find(UserPushToken.class, "userId", uid);
 
-            if (userPushToken == null) {
-                userPushToken = new UserPushToken();
-                userPushToken.setUserId(uid);
+            if (userPushToken != null && StringUtils.isBlank(request.getFmsId()))
+                this.getCore_().getDao().delete(userPushToken);
+            else {
+                if (userPushToken == null) {
+                    userPushToken = new UserPushToken();
+                    userPushToken.setUserId(uid);
+                }
+
+                switch (StringUtils.trimToEmpty(request.getOs()).toUpperCase()) {
+                    case "ANDROID":
+                        userPushToken.setDevice(UserPushToken.tokenDevice.ANDROID.name());
+                        break;
+                    case "IOS":
+                        userPushToken.setDevice(UserPushToken.tokenDevice.IOS.name());
+                        break;
+                    default:
+                        throw new UnknownDeviceException(HttpStatus.OK.value());
+                }
+
+                userPushToken.setToken(request.getFmsId());
+                this.getCore_().getDao().save(userPushToken);
             }
-
-            userPushToken.setDevice(request.getOs().toUpperCase().contains("ANDROID") ?
-                    UserPushToken.tokenDevice.ANDROID.name() : UserPushToken.tokenDevice.IOS.name());
-            userPushToken.setToken(request.getFmsId());
-            this.getCore_().getDao().save(userPushToken);
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", null));

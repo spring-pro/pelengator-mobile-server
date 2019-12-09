@@ -182,20 +182,36 @@ public class Core {
         getDeviceCmdInProgress().put(deviceId, cmdInProgress);
     }
 
-    public Map<String, Object> getCmdBtnStat(Map<String, Map<String, Object>> cmdIpProgress, Map<String, Object> item,
-                                             String btnCmd, Boolean btnState) {
-        if (cmdIpProgress != null) {
-            Map<String, Object> armCmd = cmdIpProgress.get(btnCmd);
-            if (armCmd != null) {
-                if (armCmd.get("oldSate") == btnState
-                        && (System.currentTimeMillis() - (Long) armCmd.get("sentAt")) < 30000) {
+    public Map<String, Object> getCmdBtnState(Map<String, Map<String, Object>> cmdIpProgress, Map<String, Object> item,
+                                              String btnCmd, Boolean btnState) {
+        if (cmdIpProgress != null && !cmdIpProgress.isEmpty()) {
+            Map<String, Object> cmd = cmdIpProgress.get(btnCmd);
+
+            if (cmd != null && btnCmd.equals("alarm")) {
+                cmdIpProgress.remove(btnCmd);
+            } else if (cmd != null) {
+                if (cmd.get("oldSate") == btnState
+                        && (System.currentTimeMillis() - (Long) cmd.get("sentAt")) < 30000) {
                     item.put("state_id", 1);
                 } else {
                     item.put("state_id", btnState ? 2 : 0);
                     cmdIpProgress.remove(btnCmd);
                 }
-            } else item.put("state_id", btnState ? 2 : 0);
-        } else item.put("state_id", btnState ? 2 : 0);
+            } else {
+                if (btnCmd.equals("sos"))
+                    item.put("state_id", 0);
+                else {
+                    item.put("state_id", btnState ? 2 : 0);
+                    item.put("enable", 0);
+                }
+            }
+        } else {
+            item.put("enable", 1);
+            if (btnCmd.equals("sos"))
+                item.put("state_id", 0);
+            else
+                item.put("state_id", btnState ? 2 : 0);
+        }
 
         return item;
     }

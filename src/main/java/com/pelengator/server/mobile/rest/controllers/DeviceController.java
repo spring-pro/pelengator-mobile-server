@@ -29,6 +29,8 @@ import com.pelengator.server.mobile.rest.entity.response.device.DevicePositionRe
 import com.pelengator.server.mobile.rest.entity.response.device.DeviceSettingsResponse;
 import com.pelengator.server.mobile.rest.entity.response.device.DeviceStateResponse;
 import com.pelengator.server.utils.ApplicationUtility;
+import com.pelengator.server.utils.DeviceLogger;
+import com.pelengator.server.utils.sms.SmsSender;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.hibernate.exception.ConstraintViolationException;
@@ -68,7 +70,11 @@ public class DeviceController extends BaseController {
                 if (request == null)
                     throw new UnknownException(HttpStatus.OK.value());
 
-                device = this.getCore_().getDao().find(Device.class, request.getDeviceId());
+                if (request.getDeviceId() != null)
+                    device = this.getCore_().getDao().find(Device.class, request.getDeviceId());
+                else
+                    device = this.getCore_().getDao().find(Device.class,
+                            this.getCore_().getUserCurrentDevice(uid).getId());
             } else {
                 device = this.getCore_().getDao().find(Device.class,
                         this.getCore_().getUserCurrentDevice(uid).getId());
@@ -409,6 +415,7 @@ public class DeviceController extends BaseController {
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 6,\n" +
+                    "        \"state_id\": 0,\n" +
                     "        \"enable\": 1\n" +
                     "      },\n" +
                     "      {\n" +
@@ -481,17 +488,21 @@ public class DeviceController extends BaseController {
 
                 data.getButtons().get("main").forEach(item -> {
                     if (19 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnStat(cmdIpProgress, item, "arm",
+                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "arm",
                                 deviceState.isArmStatus());
                     } else if (1 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnStat(cmdIpProgress, item, "engine",
+                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "engine",
                                 deviceState.isTachometerStatus());
                     } else if (5 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnStat(cmdIpProgress, item, "block",
+                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "block",
                                 deviceState.isAhyStatus());
                     } else if (4 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnStat(cmdIpProgress, item, "service",
+                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
                                 deviceState.isValetStatus());
+                    } else if (12 == Math.round((Double) item.get("id"))) {
+                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "alarm", false);
+                    } else if (6 == Math.round((Double) item.get("id"))) {
+                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "sos", true);
                     }
                 });
 
@@ -550,74 +561,107 @@ public class DeviceController extends BaseController {
                                   @PathVariable("uid") long uid) {
 
         try {
+            boolean isSendCmdToGateway = true;
+            int sentMessagesCount = 0;
+
             Device device = this.getCore_().getUserCurrentDevice(uid);
 
-            CommandHistory commandHistory = new CommandHistory();
-            commandHistory.setCommand(cmd);
-            commandHistory.setDeviceType(1);
-            commandHistory.setDeviceId(device.getId());
-            commandHistory.setSenderId(uid);
-            commandHistory.setSenderType(CommandHistory.CommandSenderTypeEnum.USER.name());
-            commandHistory.setSent(false);
-            commandHistory.setErrMsg("");
-            commandHistory.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
-            commandHistory.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
-            this.getCore_().getDao().save(commandHistory);
+            DeviceState deviceState =
+                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
+
+            DeviceLog deviceLog = new DeviceLog();
+            deviceLog.setDeviceId(device.getId());
+            deviceLog.setAdminId(null);
+            deviceLog.setUserId(uid);
+            deviceLog.setSenderType(DeviceLog.CommandSenderTypeEnum.USER.name());
+            deviceLog.setLogType(DeviceLogger.LOG_TYPE_OUTPUT_EVENT);
+            deviceLog.setEventType(0);
+            deviceLog.setMessage(cmd);
+            deviceLog.setSent(false);
+            deviceLog.setDescription("");
+            deviceLog.setErrMsg("");
+            deviceLog.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+            deviceLog.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+            this.getCore_().getDao().save(deviceLog);
 
             BaseCmdResponse response = new BaseCmdResponse();
 
             switch (cmd) {
                 case "engine_on": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_ENGINE_START.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "engine", false);
                     break;
                 }
                 case "engine_off": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_ENGINE_STOP.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "engine", true);
                     break;
                 }
                 case "arm_on": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_ARM_ENABLE.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "arm", false);
                     break;
                 }
                 case "arm_off": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_ARM_DISABLE.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "arm", true);
                     break;
                 }
                 case "block_on": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_ENGINE_LOCK.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "block", false);
                     break;
                 }
                 case "block_off": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_ENGINE_UNLOCK.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "block", true);
                     break;
                 }
                 case "alarm_on": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_SEARCH_CAR.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "alarm", false);
                     break;
                 }
                 case "service_on": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_SERVICE_ENABLE.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "service", false);
                     break;
                 }
                 case "service_off": {
-                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), commandHistory.getId(),
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_SERVICE_DISABLE.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "service", true);
+                    break;
+                }
+                case "sos_on": {
+                    isSendCmdToGateway = false;
+                    UserSettings userSettings = this.getCore_().getDao().find(UserSettings.class, uid);
+                    if (userSettings != null && !StringUtils.isBlank(userSettings.getSosPhones())) {
+                        User user = this.getCore_().getDao().find(User.class, uid);
+
+                        String[] sosPhones = userSettings.getSosPhones().split(",", -1);
+                        for (String sosPhone : sosPhones) {
+                            if (!StringUtils.isBlank(sosPhone) && sosPhone.length() > 7) {
+                                try {
+                                    if (SmsSender.send(sosPhone, "Сообщение об экстренной " +
+                                            "ситуации от пользователя тел. " + user.getPhone() + " , позиция: " +
+                                            "https://maps.yandex.ru?text=" + deviceState.getLatitude() + "," + deviceState.getLongitude()))
+                                        sentMessagesCount ++;
+                                } catch (Throwable cause) {
+                                    LOGGER.error("SEND SMS FATAL error -> " + cause.getMessage());
+                                }
+                            }
+                        }
+                    }
+                    getCore_().addDeviceCmdInProgress(device.getId(), "sos", false);
                     break;
                 }
                 default: {
@@ -625,14 +669,22 @@ public class DeviceController extends BaseController {
                 }
             }
 
-            if (response.getCode() == HttpStatus.OK.value()) {
+            if (isSendCmdToGateway) {
+                if (response.getCode() == HttpStatus.OK.value()) {
+                    Map<String, String> data = new HashMap<>(1);
+                    data.put("answer", "Команда отправлена!");
+
+                    return ResponseEntity.status(HttpStatus.OK).body(
+                            new BaseResponse(HttpStatus.OK.value(), "", data));
+                } else {
+                    throw new Exception(response.getMessage());
+                }
+            } else {
                 Map<String, String> data = new HashMap<>(1);
                 data.put("answer", "Команда отправлена!");
-
                 return ResponseEntity.status(HttpStatus.OK).body(
-                        new BaseResponse(HttpStatus.OK.value(), "", data));
-            } else {
-                throw new Exception(response.getMessage());
+                        new BaseResponse(HttpStatus.OK.value(),
+                                "Успешно отправлено сообщений: " + sentMessagesCount, data));
             }
         } catch (Throwable cause) {
             LOGGER.error("REQUEST error -> /device/cmd: ", cause);

@@ -112,10 +112,29 @@ public class Core {
 
     public Device getDevice(long deviceId) throws Exception {
         Device device = hazelcastClient.getDevice(deviceId);
-        if (device == null)
+        if (device == null) {
             device = dao.find(Device.class, deviceId);
 
+            try {
+                hazelcastClient.putDevice(device.getId(), device);
+            } catch (Throwable cause) {
+                LOGGER.error("Save DeviceState to Hazelcast ERROR occurred -> " + cause.getMessage());
+            }
+        }
+
         return device;
+    }
+
+    public void subtractOneFreePush(Device device) throws Exception {
+        if (device.getFreePushCount() > 0) {
+            device.setFreePushCount(device.getFreePushCount() - 1);
+            saveDevice(device);
+        }
+    }
+
+    public void saveDevice(Device device) throws Exception {
+        dao.save(device);
+        hazelcastClient.putDevice(device.getId(), device);
     }
 
     public DeviceState getDeviceState(long deviceId) throws Exception {

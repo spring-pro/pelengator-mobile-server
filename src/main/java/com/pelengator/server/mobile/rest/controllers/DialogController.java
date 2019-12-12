@@ -25,6 +25,7 @@ import com.pelengator.server.mobile.rest.entity.request.chat.DialogSetReadReques
 import com.pelengator.server.utils.ApplicationUtility;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
+import org.hibernate.Session;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -60,7 +61,7 @@ public class DialogController extends BaseController {
             }
 
             List<DialogDao.DialogMessageMobileEntity> data =
-                    this.getCore_().getDialogDao().getUserConfigForMobile(dialog.getId());
+                    this.getCore_().getDialogDao().getAllDialogMessages(dialog.getId());
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
@@ -133,7 +134,13 @@ public class DialogController extends BaseController {
             dialogMessage.setMessage(request.getMessage());
             dialogMessage.setIsRead(false);
             dialogMessage.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
-            this.getCore_().getDao().save(dialogMessage);
+
+            dialog.setReadBySupport(false);
+
+            Session session = this.getCore_().getDao().beginTransaction();
+            this.getCore_().getDao().save(dialog, session);
+            this.getCore_().getDao().save(dialogMessage, session);
+            this.getCore_().getDao().commitTransaction(session);
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", null));

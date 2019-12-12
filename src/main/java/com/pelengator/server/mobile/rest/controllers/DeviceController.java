@@ -410,8 +410,8 @@ public class DeviceController extends BaseController {
                     "    \"main\": [\n" +
                     "      {\n" +
                     "        \"id\": 19,\n" +
-                    "        \"state_id\": 1,\n" +
-                    "        \"enable\": 1\n" +
+                    "        \"state_id\": 0,\n" +
+                    "        \"enable\": 0\n" +
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 6,\n" +
@@ -421,12 +421,12 @@ public class DeviceController extends BaseController {
                     "      {\n" +
                     "        \"id\": 1,\n" +
                     "        \"state_id\": 0,\n" +
-                    "        \"enable\": 1\n" +
+                    "        \"enable\": 0\n" +
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 5,\n" +
-                    "        \"state_id\": 1,\n" +
-                    "        \"enable\": 1\n" +
+                    "        \"state_id\": 0,\n" +
+                    "        \"enable\": 0\n" +
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 3,\n" +
@@ -434,12 +434,12 @@ public class DeviceController extends BaseController {
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 12,\n" +
-                    "        \"enable\": 1\n" +
+                    "        \"enable\": 0\n" +
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 5,\n" +
-                    "        \"state_id\": 1,\n" +
-                    "        \"enable\": 1\n" +
+                    "        \"state_id\": 0,\n" +
+                    "        \"enable\": 0\n" +
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 18,\n" +
@@ -448,7 +448,7 @@ public class DeviceController extends BaseController {
                     "      {\n" +
                     "        \"id\": 4,\n" +
                     "        \"state_id\": 0,\n" +
-                    "        \"enable\": 1\n" +
+                    "        \"enable\": 0\n" +
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 17,\n" +
@@ -483,29 +483,6 @@ public class DeviceController extends BaseController {
                 Device device = this.getCore_().getDevice(deviceState.getDeviceId());
                 Payment payment = this.getCore_().getPaymentTelematics(deviceState.getDeviceId());
 
-                Map<String, Map<String, Object>> cmdIpProgress =
-                        this.getCore_().getDeviceCmdInProgress().get(deviceState.getDeviceId());
-
-                data.getButtons().get("main").forEach(item -> {
-                    if (19 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "arm",
-                                deviceState.isArmStatus());
-                    } else if (1 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "engine",
-                                deviceState.isTachometerStatus());
-                    } else if (5 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "block",
-                                deviceState.isAhyStatus());
-                    } else if (4 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
-                                deviceState.isValetStatus());
-                    } else if (12 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "alarm", false);
-                    } else if (6 == Math.round((Double) item.get("id"))) {
-                        this.getCore_().getCmdBtnState(cmdIpProgress, item, "sos", true);
-                    }
-                });
-
                 int kitMaintenanceStateDays = device.getKitMaintenanceDate() == null ? 0 :
                         ((int) ((ApplicationUtility.getDateInSecondsWithAddMonthCount(
                                 device.getKitMaintenanceDate(), 12)
@@ -514,34 +491,77 @@ public class DeviceController extends BaseController {
                 int payFullPeriodDays = getPayTelematicsFullPeriodDays(payment);
                 int payStateDays = getPayTelematicsStateDays(payment, payFullPeriodDays);
 
-                bottomButtonsList.forEach(item -> {
-                    if (201 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 201);
-                        item.put("text", String.format("%.2f", (deviceState.getExternalPower())) + " v");
-                        item.put("percent", Math.round((deviceState.getExternalPower()) * 100 / 15));
-                    } else if (208 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 208);
-                        item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
-                        item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
-                    } else if (209 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 209);
-                        item.put("text", (Math.max(payStateDays, 0)) + " дн.");
-                        item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
-                    } else if (205 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 205);
-                        item.put("text", deviceState.getGsmQuality() + " шт.");
-                        item.put("percent", deviceState.getGsmQuality() * 100 / 7);
-                    } else if (206 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 206);
-                        item.put("text", deviceState.getGpsQuality() + " шт.");
-                        item.put("percent", deviceState.getGpsQuality() * 100 / 15);
-                    } else if (202 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 202);
-                        item.put("text", String.format("%.2f", (deviceState.getBatteryPower())) + " v");
-                        item.put("percent", Math.round((deviceState.getBatteryPower()) * 100 / 4.24));
+                Map<String, Map<String, Object>> cmdIpProgress =
+                        this.getCore_().getDeviceCmdInProgress().get(deviceState.getDeviceId());
+
+                data.getButtons().get("main").forEach(item -> {
+                    if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name()) ||
+                            !device.getIsActivated() || (payStateDays == 0 && device.getFreePushCount() <= 0)) {
+
+                        if (17 != Math.round((Double) item.get("id"))) {
+                            item.put("enable", 0);
+                        }
+                    } else {
+                        if (19 == Math.round((Double) item.get("id"))) {
+                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "arm",
+                                    deviceState.isArmStatus());
+                        } else if (1 == Math.round((Double) item.get("id"))) {
+                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "engine",
+                                    deviceState.isTachometerStatus());
+                        } else if (5 == Math.round((Double) item.get("id"))) {
+                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "block",
+                                    deviceState.isAhyStatus());
+                        } else if (4 == Math.round((Double) item.get("id"))) {
+                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
+                                    deviceState.isValetStatus());
+                        } else if (12 == Math.round((Double) item.get("id"))) {
+                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "alarm", false);
+                        } else if (6 == Math.round((Double) item.get("id"))) {
+                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "sos", true);
+                        }
                     }
                 });
-                data.getButtons().put("bottom", bottomButtonsList);
+
+                if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.CONNECTED.name())) {
+                    bottomButtonsList.forEach(item -> {
+                        if (201 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 201);
+                            item.put("text", String.format("%.2f", (deviceState.getExternalPower())) + " v");
+                            item.put("percent", Math.round((deviceState.getExternalPower()) * 100 / 15));
+                        } else if (208 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 208);
+                            item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
+                            item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
+                        } else if (209 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 209);
+                            item.put("text", (Math.max(payStateDays, 0)) + " дн.");
+                            item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
+                        } else if (205 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 205);
+                            item.put("text", deviceState.getGsmQuality() + " шт.");
+                            item.put("percent", deviceState.getGsmQuality() * 100 / 7);
+                        } else if (206 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 206);
+                            item.put("text", deviceState.getGpsQuality() + " шт.");
+                            item.put("percent", deviceState.getGpsQuality() * 100 / 17);
+                        } else if (202 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 202);
+                            item.put("text", String.format("%.2f", (deviceState.getBatteryPower())) + " v");
+                            item.put("percent", Math.round((deviceState.getBatteryPower()) * 100 / 4.24));
+                        }
+                    });
+
+                    if (payStateDays == 0) {
+                        Map<String, Object> item = new HashMap<>(3);
+                        item.put("icon_id", 210);
+                        item.put("text", "Нажатий");
+                        item.put("percent", device.getFreePushCount() * 100 / 10);
+                        item.put("enable", 1);
+                        bottomButtonsList.add(item);
+                    }
+
+                    data.getButtons().put("bottom", bottomButtonsList);
+                }
             }
 
             return ResponseEntity.status(HttpStatus.OK).body(
@@ -654,7 +674,7 @@ public class DeviceController extends BaseController {
                                     if (SmsSender.send(sosPhone, "Сообщение об экстренной " +
                                             "ситуации от пользователя тел. " + user.getPhone() + " , позиция: " +
                                             "https://maps.yandex.ru?text=" + deviceState.getLatitude() + "," + deviceState.getLongitude()))
-                                        sentMessagesCount ++;
+                                        sentMessagesCount++;
                                 } catch (Throwable cause) {
                                     LOGGER.error("SEND SMS FATAL error -> " + cause.getMessage());
                                 }
@@ -674,6 +694,8 @@ public class DeviceController extends BaseController {
                     Map<String, String> data = new HashMap<>(1);
                     data.put("answer", "Команда отправлена!");
 
+                    this.getCore_().subtractOneFreePush(device);
+
                     return ResponseEntity.status(HttpStatus.OK).body(
                             new BaseResponse(HttpStatus.OK.value(), "", data));
                 } else {
@@ -682,6 +704,9 @@ public class DeviceController extends BaseController {
             } else {
                 Map<String, String> data = new HashMap<>(1);
                 data.put("answer", "Команда отправлена!");
+
+                this.getCore_().subtractOneFreePush(device);
+
                 return ResponseEntity.status(HttpStatus.OK).body(
                         new BaseResponse(HttpStatus.OK.value(),
                                 "Успешно отправлено сообщений: " + sentMessagesCount, data));
@@ -718,6 +743,8 @@ public class DeviceController extends BaseController {
                 data.setLng(deviceState.getLongitude());
                 data.setSpeed(deviceState.getSpeed());
                 data.setAccuracy(deviceState.getDop());
+
+                this.getCore_().subtractOneFreePush(this.getCore_().getDevice(deviceState.getDeviceId()));
             }
 
             return ResponseEntity.status(HttpStatus.OK).body(
@@ -776,6 +803,8 @@ public class DeviceController extends BaseController {
                             dateFrom,
                             dateTo
                     );
+
+            this.getCore_().subtractOneFreePush(this.getCore_().getDevice(deviceState.getDeviceId()));
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {

@@ -15,6 +15,7 @@ package com.pelengator.server.mobile.rest.controllers;
 import com.google.gson.Gson;
 import com.pelengator.server.autofon.AutofonCommands;
 import com.pelengator.server.dao.postgresql.DevicePositionDao;
+import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.*;
 import com.pelengator.server.mobile.Core;
@@ -110,8 +111,9 @@ public class DeviceController extends BaseController {
             installment.put("text", "text");
             installment.put("color", 2);*/
 
+
             Map<String, Map<String, Object>> data = new HashMap<>();
-            data.put("activation", activation);
+            /*data.put("activation", activation);*/
             data.put("telematics", telematics);
             /*data.put("installment", installment);*/
 
@@ -306,10 +308,21 @@ public class DeviceController extends BaseController {
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
-            this.getCore_().setUserCurrentDevice(uid, Long.parseLong(request.getImei()));
+            Device device = this.getCore_().setUserCurrentDevice(uid, Long.parseLong(request.getImei()));
 
-            return ResponseEntity.status(HttpStatus.OK).body(
-                    new BaseResponse(HttpStatus.OK.value(), "", null));
+            DeviceState deviceState =
+                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
+
+            if (deviceState != null &&
+                    deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
+
+                return ResponseEntity.status(HttpStatus.OK).body(
+                        new BaseResponse(HttpStatus.OK.value(), "Нет связи с автомобилем!", null));
+            } else {
+                sendAutoStatusCmd(device);
+                return ResponseEntity.status(HttpStatus.OK).body(
+                        new BaseResponse(HttpStatus.OK.value(), "", null));
+            }
         } catch (BaseException e) {
             LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
@@ -448,7 +461,7 @@ public class DeviceController extends BaseController {
                     "      {\n" +
                     "        \"id\": 4,\n" +
                     "        \"state_id\": 0,\n" +
-                    "        \"enable\": 0\n" +
+                    "        \"enable\": 1\n" +
                     "      },\n" +
                     "      {\n" +
                     "        \"id\": 17,\n" +
@@ -476,8 +489,14 @@ public class DeviceController extends BaseController {
             DeviceStateResponse data = gson.fromJson(stateTemp, DeviceStateResponse.class);
             List<Map<String, Object>> bottomButtonsList = data.getButtons().get("bottom");
 
+            Device currentDevice = this.getCore_().getUserCurrentDevice(uid);
+            if (currentDevice == null)
+                // If current device is not set
+                return ResponseEntity.status(HttpStatus.OK).body(
+                        new BaseResponse(HttpStatus.REQUEST_TIMEOUT.value(), "Ведутся технические работы, Подождите, пожалуйста ...", data));
+
             DeviceState deviceState =
-                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
+                    this.getCore_().getDeviceState(currentDevice.getId());
 
             if (deviceState != null) {
                 Device device = this.getCore_().getDevice(deviceState.getDeviceId());
@@ -495,10 +514,19 @@ public class DeviceController extends BaseController {
                         this.getCore_().getDeviceCmdInProgress().get(deviceState.getDeviceId());
 
                 data.getButtons().get("main").forEach(item -> {
-                    if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name()) ||
-                            !device.getIsActivated() || (payStateDays == 0 && device.getFreePushCount() <= 0)) {
-
-                        if (17 != Math.round((Double) item.get("id"))) {
+                    if (!device.getIsActivated() ||
+                            (payStateDays == 0 &&
+                                    (device.getFreeUsageFinishedAt() == null ||
+                                            device.getFreeUsageFinishedAt().getTime() < ApplicationUtility.getCurrentTimeStampGMT_0()))
+                    ) {
+                        if ((17 != Math.round((Double) item.get("id"))) && (4 != Math.round((Double) item.get("id")))) {
+                            item.put("enable", 0);
+                        }
+                    } else if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
+                        if (6 != Math.round((Double) item.get("id")) &&
+                                18 != Math.round((Double) item.get("id")) &&
+                                2 != Math.round((Double) item.get("id")) &&
+                                17 != Math.round((Double) item.get("id"))) {
                             item.put("enable", 0);
                         }
                     } else {
@@ -551,18 +579,44 @@ public class DeviceController extends BaseController {
                         }
                     });
 
-                    if (payStateDays == 0) {
+                    if (payStateDays == 0 && (device.getFreeUsageFinishedAt() == null ||
+                            device.getFreeUsageFinishedAt().getTime() > ApplicationUtility.getCurrentTimeStampGMT_0())) {
+
+                        int freeUsageDays = 0;
+
+                        if (device.getFreeUsageFinishedAt() != null)
+                            freeUsageDays = (int) ((device.getFreeUsageFinishedAt().getTime() - ApplicationUtility.getCurrentTimeStampGMT_0()) / (1000 * 60 * 60 * 24));
+
                         Map<String, Object> item = new HashMap<>(3);
                         item.put("icon_id", 210);
-                        item.put("text", "Нажатий");
-                        item.put("percent", device.getFreePushCount() * 100 / 10);
+
+                        if (freeUsageDays == 1)
+                            item.put("text", "День");
+                        else if (freeUsageDays > 1 && freeUsageDays < 5)
+                            item.put("text", "Дня");
+                        else
+                            item.put("text", "Дней");
+
+                        item.put("percent", freeUsageDays * 100 / 10);
                         item.put("enable", 1);
                         bottomButtonsList.add(item);
                     }
 
                     data.getButtons().put("bottom", bottomButtonsList);
+                } else {
+                    bottomButtonsList.forEach(item -> {
+                        if (208 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 208);
+                            item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
+                            item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
+                        }
+                    });
                 }
             }
+
+            List<DialogMessageMobileEntity> messages = this.getCore_().getUnreadChatMessagesFromCacheL2(uid);
+            if (messages != null)
+                data.getMessages().addAll(messages);
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
@@ -694,8 +748,6 @@ public class DeviceController extends BaseController {
                     Map<String, String> data = new HashMap<>(1);
                     data.put("answer", "Команда отправлена!");
 
-                    this.getCore_().subtractOneFreePush(device);
-
                     return ResponseEntity.status(HttpStatus.OK).body(
                             new BaseResponse(HttpStatus.OK.value(), "", data));
                 } else {
@@ -704,8 +756,6 @@ public class DeviceController extends BaseController {
             } else {
                 Map<String, String> data = new HashMap<>(1);
                 data.put("answer", "Команда отправлена!");
-
-                this.getCore_().subtractOneFreePush(device);
 
                 return ResponseEntity.status(HttpStatus.OK).body(
                         new BaseResponse(HttpStatus.OK.value(),
@@ -743,8 +793,6 @@ public class DeviceController extends BaseController {
                 data.setLng(deviceState.getLongitude());
                 data.setSpeed(deviceState.getSpeed());
                 data.setAccuracy(deviceState.getDop());
-
-                this.getCore_().subtractOneFreePush(this.getCore_().getDevice(deviceState.getDeviceId()));
             }
 
             return ResponseEntity.status(HttpStatus.OK).body(
@@ -804,11 +852,45 @@ public class DeviceController extends BaseController {
                             dateTo
                     );
 
-            this.getCore_().subtractOneFreePush(this.getCore_().getDevice(deviceState.getDeviceId()));
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/state: ", cause);
+            LOGGER.error("REQUEST error -> /device/get/tracking: ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/edit/kick_user/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity deleteUser(@PathVariable("token") String token,
+                                     @PathVariable("uid") long uid,
+                                     @RequestParam(name = "d", defaultValue = "") String requestBody) {
+
+        try {
+            DeviceDeleteUserRequest request =
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
+                            DeviceDeleteUserRequest.class);
+
+            if (request == null)
+                throw new UnknownException(HttpStatus.OK.value());
+
+            Device device = this.getCore_().getDao().find(Device.class, "imei", request.getDeviceImei());
+            if (device == null)
+                return ResponseEntity.status(HttpStatus.OK).body(
+                        new BaseResponse(HttpStatus.NOT_FOUND.value(), "Неверный IMEI", null));
+
+            User user = this.getCore_().getDao().find(User.class, "phone", request.getPhoneNum());
+            if (user == null)
+                return ResponseEntity.status(HttpStatus.OK).body(
+                        new BaseResponse(HttpStatus.NOT_FOUND.value(), "Неверный телефон", null));
+
+            this.getCore_().getUserDeviceDao().delete(user.getId(), device.getId());
+
+            return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> /device/edit/kick_user: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }

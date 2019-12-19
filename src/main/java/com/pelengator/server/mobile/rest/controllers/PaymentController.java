@@ -178,22 +178,22 @@ public class PaymentController extends BaseController {
             String htmlSelectOptions = "";
             switch (payment.getPayType()) {
                 case Payment.PAY_TYPE_TELEMATICS: {
-                    htmlSelectOptions += "                           <option value=\"12|10\" selected>1 год - 3.900Р</option>\n";
+                    htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";
                     break;
                 }
                 case Payment.PAY_TYPE_ACTIVATION: {
                     switch (device.getKitName()) {
                         case "Pelengator S":
-                            htmlSelectOptions += "                           <option value=\"0|10\" selected>" + device.getKitName() + " - 20.000Р</option>\n";
+                            htmlSelectOptions += "                           <option value=\"0|30000\" selected>" + device.getKitName() + " - 30.000Р</option>\n";
                             break;
                         case "Pelengator S+":
-                            htmlSelectOptions += "                           <option value=\"0|10\" selected>" + device.getKitName() + " - 20.000Р</option>\n";
+                            htmlSelectOptions += "                           <option value=\"0|30000\" selected>" + device.getKitName() + " - 30.000Р</option>\n";
                             break;
                         case "СПРИНГ-СТАТИЧЕСКИЙ":
-                            htmlSelectOptions += "                           <option value=\"0|10\" selected>" + device.getKitName() + " - 17.500Р</option>\n";
+                            htmlSelectOptions += "                           <option value=\"0|30000\" selected>" + device.getKitName() + " - 30.000Р</option>\n";
                             break;
                         case "СПРИНГ-ДИНАМИЧЕСКИЙ":
-                            htmlSelectOptions += "                           <option value=\"0|10\" selected>" + device.getKitName() + " - 24.000Р</option>\n";
+                            htmlSelectOptions += "                           <option value=\"0|30000\" selected>" + device.getKitName() + " - 30.000Р</option>\n";
                             break;
                         default:
                             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Данное устройство не подлежит активации");

@@ -13,7 +13,9 @@
 package com.pelengator.server.mobile.rest.controllers;
 
 import com.pelengator.server.dao.postgresql.UserDao;
+import com.pelengator.server.dao.postgresql.dto.ConnectedUsersForMobile;
 import com.pelengator.server.dao.postgresql.entity.User;
+import com.pelengator.server.dao.postgresql.entity.UserDevice;
 import com.pelengator.server.dao.postgresql.entity.UserPushToken;
 import com.pelengator.server.dao.postgresql.entity.UserSettings;
 import com.pelengator.server.exception.mobile.*;
@@ -45,7 +47,8 @@ public class UserController extends BaseController {
 
     private static final Logger LOGGER = Core.getLogger(UserController.class.getSimpleName());
 
-    @RequestMapping(value = "/login", method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @RequestMapping(value = "/login", method = RequestMethod.POST,
+            produces = "application/json;charset=UTF-8")
     @ResponseBody
     public ResponseEntity userLogin(@RequestParam(name = "d", defaultValue = "") String requestBody) {
         try {
@@ -73,9 +76,7 @@ public class UserController extends BaseController {
                             .concat(String.format("%06d", user.getId())));
             getCore_().getDao().save(user);
 
-            int smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
-
-            LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
+            int smsCode = getSmsCode(user);
 
             if (!SmsSender.send(user.getPhone(), "Pelengator confirm code: " + smsCode))
                 throw new UnknownException(HttpStatus.OK.value());
@@ -152,9 +153,7 @@ public class UserController extends BaseController {
             if (user == null)
                 throw new UserNotFoundException(HttpStatus.OK.value());
 
-            int smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
-
-            LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
+            int smsCode = getSmsCode(user);
 
             if (!SmsSender.send(user.getPhone(), "Pelengator confirm code: " + smsCode))
                 throw new UnknownException(HttpStatus.OK.value());
@@ -239,6 +238,8 @@ public class UserController extends BaseController {
             List<Map> alarmDevicesResultList = new ArrayList<>();
             int index = 0;
             for (UserDao.UserConfigForMobileEntity item : alarmDevicesList) {
+
+                List<List<Object>> connectedUsers = new ArrayList<>();
                 Map<String, Object> alarmDeviceItem = new HashMap<>();
                 alarmDeviceItem.put("index", ++index);
                 alarmDeviceItem.put("id", item.getDeviceId().toString());
@@ -252,7 +253,24 @@ public class UserController extends BaseController {
                 alarmDeviceItem.put("phone_number", item.getPhoneNumber());
                 alarmDeviceItem.put("access_type", "3");
                 alarmDeviceItem.put("pay_status", 1);
-                alarmDeviceItem.put("connected_users", new String[0]);
+
+                if (index == 1 && uid == item.getUserId()) {
+                    // Если этот пользователь первым подключил устройство - является владельцем
+
+                    List<ConnectedUsersForMobile> connectedUsersForMobileList = this.getCore_().getUserDeviceDao().getConnectedUsers(item.getDeviceId());
+                    if (connectedUsersForMobileList != null && connectedUsersForMobileList.size() > 0) {
+                        for (ConnectedUsersForMobile connectedUsersForMobile : connectedUsersForMobileList) {
+                            List<Object> deviceConnectedUsersList = new ArrayList<>(3);
+                            deviceConnectedUsersList.add(connectedUsersForMobile.getPhone());
+                            deviceConnectedUsersList.add(ApplicationUtility.milliSecondsToFormattedString(
+                                    connectedUsersForMobile.getCreatedAt().getTime(),
+                                    ApplicationUtility.GMT_3, ApplicationUtility.DATE_FORMAT));
+                            deviceConnectedUsersList.add(connectedUsersForMobile.getId());
+                            connectedUsers.add(deviceConnectedUsersList);
+                        }
+                    }
+                }
+                alarmDeviceItem.put("connected_users", connectedUsers);
                 alarmDevicesResultList.add(alarmDeviceItem);
             }
 

@@ -21,8 +21,7 @@
         <property name="connection.connectTimeout">15000</property>
         <property name="connection.socketTimeout">15000</property>
         <property name="connection.driver_class">org.postgresql.Driver</property>
-        <property name="connection.isolation">8</property>
-        
+
         <property name="connection.autocommit">true</property>
 
         <property name="connection.provider_class">org.hibernate.c3p0.internal.C3P0ConnectionProvider</property>

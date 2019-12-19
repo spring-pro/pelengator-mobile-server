@@ -14,6 +14,7 @@ package com.pelengator.server.mobile.rest.entity.response.device;
 
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.annotations.Since;
+import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ public class DeviceStateResponse extends BaseEntity {
 
     @Since(1.0)
     @SerializedName("messages")
-    private List<Object> messages = new ArrayList<>(0);
+    private List<DialogMessageMobileEntity> messages = new ArrayList<>(0);
 
     public Integer getDataTs() {
         return dataTs;
@@ -74,11 +75,11 @@ public class DeviceStateResponse extends BaseEntity {
         this.allStatuses = allStatuses;
     }
 
-    public List<Object> getMessages() {
+    public List<DialogMessageMobileEntity> getMessages() {
         return messages;
     }
 
-    public void setMessages(List<Object> messages) {
+    public void setMessages(List<DialogMessageMobileEntity> messages) {
         this.messages = messages;
     }
 }

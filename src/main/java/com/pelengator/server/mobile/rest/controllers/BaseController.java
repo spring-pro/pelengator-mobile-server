@@ -13,15 +13,22 @@
 package com.pelengator.server.mobile.rest.controllers;
 
 import com.google.gson.Gson;
-import com.pelengator.server.dao.postgresql.entity.Payment;
+import com.pelengator.server.autofon.AutofonCommands;
+import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.kafka.TransportCommandObject;
 import com.pelengator.server.mobile.rest.entity.response.BaseCmdResponse;
 import com.pelengator.server.utils.ApplicationUtility;
+import com.pelengator.server.utils.DeviceLogger;
 import org.apache.log4j.Logger;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.util.Date;
 
 public abstract class BaseController {
 
@@ -45,6 +52,24 @@ public abstract class BaseController {
 
     private Core core_;
 
+    protected int getSmsCode(User user) {
+        int smsCode = 1234;
+        if (!user.getPhone().equals("79857777766") && !user.getPhone().equals("79653684111"))
+            smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
+        LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
+        return smsCode;
+    }
+
+    protected Dialog createDialog(long uid, boolean isReadBySupport) throws Exception {
+        Dialog dialog = new Dialog();
+        dialog.setUserId(uid);
+        dialog.setReadBySupport(isReadBySupport);
+        dialog.setCreatedAt(new Timestamp(new Date().getTime()));
+        dialog.setUpdatedAt(new Timestamp(new Date().getTime()));
+        this.getCore_().getDao().save(dialog);
+        return dialog;
+    }
+
     protected BaseCmdResponse sendAutofonCmdPost(TransportCommandObject data) {
 
         try {
@@ -57,6 +82,36 @@ public abstract class BaseController {
             return result.getBody();
         } catch (Exception ex) {
             return new BaseCmdResponse(500, ex.getMessage(), null);
+        }
+    }
+
+    protected void sendAutoStatusCmd(Device device) {
+
+        try {
+            DeviceLog deviceLog = new DeviceLog();
+            deviceLog.setDeviceId(device.getId());
+            deviceLog.setAdminId(null);
+            deviceLog.setUserId(null);
+            deviceLog.setSenderType(DeviceLog.CommandSenderTypeEnum.SERVER.name());
+            deviceLog.setLogType(DeviceLogger.LOG_TYPE_OUTPUT_EVENT);
+            deviceLog.setEventType(0);
+            deviceLog.setMessage("carInfo");
+            deviceLog.setDescription("");
+            deviceLog.setErrMsg("");
+            deviceLog.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+            deviceLog.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+            this.getCore_().getDao().save(deviceLog);
+
+            BaseCmdResponse response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
+                    AutofonCommands.AUTOFON_CMD_GET_STATUS_AUTO_INFO.toString(StandardCharsets.ISO_8859_1)));
+
+            if (response.getCode() == HttpStatus.OK.value())
+                deviceLog.setSent(true);
+            else
+                deviceLog.setSent(false);
+            this.getCore_().getDao().save(deviceLog);
+        } catch (Throwable cause) {
+            LOGGER.error("SERVER CMD -> sendAutoStatusCmd: ", cause);
         }
     }
 

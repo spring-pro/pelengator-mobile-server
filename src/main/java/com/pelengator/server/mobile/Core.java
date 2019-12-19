@@ -12,11 +12,15 @@
 
 package com.pelengator.server.mobile;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.pelengator.server.dao.postgresql.*;
+import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.TokenExpiredException;
 import com.pelengator.server.hazelcast.HazelcastClient;
 import com.pelengator.server.utils.ApplicationUtility;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.springframework.http.HttpStatus;
@@ -31,6 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class Core {
 
     private static final Logger LOGGER = getLogger(Core.class.getSimpleName());
+
+    protected static Gson gson = new Gson();
 
     private String kafkaAddress;
     private static boolean isIsDebugMode;
@@ -99,11 +105,12 @@ public class Core {
         return user.getId();
     }
 
-    public void setUserCurrentDevice(long userId, long imei) throws Exception {
+    public Device setUserCurrentDevice(long userId, long imei) throws Exception {
         Device device = dao.find(Device.class, "imei", imei);
         if (device == null)
             throw new TokenExpiredException(HttpStatus.OK.value());
         userCurrentDeviceCacheL3.put(userId, device);
+        return device;
     }
 
     public Device getUserCurrentDevice(long userId) throws Exception {
@@ -111,58 +118,90 @@ public class Core {
     }
 
     public Device getDevice(long deviceId) throws Exception {
-        Device device = hazelcastClient.getDevice(deviceId);
+        Device device = getDeviceFromCacheL2(deviceId);
         if (device == null) {
             device = dao.find(Device.class, deviceId);
-
-            try {
-                hazelcastClient.putDevice(device.getId(), device);
-            } catch (Throwable cause) {
-                LOGGER.error("Save DeviceState to Hazelcast ERROR occurred -> " + cause.getMessage());
-            }
+            saveDeviceToCacheL2(device);
         }
 
         return device;
     }
 
-    public void subtractOneFreePush(Device device) throws Exception {
-        if (device.getFreePushCount() > 0) {
-            device.setFreePushCount(device.getFreePushCount() - 1);
-            saveDevice(device);
+    private synchronized Device getDeviceFromCacheL2(long deviceId) {
+        try {
+            return hazelcastClient.getDevice(deviceId);
+        } catch (Throwable cause) {
+            LOGGER.error("Get Device from Hazelcast ERROR occurred -> " + cause.getMessage());
+            return null;
+        }
+    }
+
+    private synchronized void saveDeviceToCacheL2(Device device) {
+        try {
+            hazelcastClient.putDevice(device.getId(), device);
+        } catch (Throwable cause) {
+            LOGGER.error("Save Device to Hazelcast ERROR occurred -> " + cause.getMessage());
         }
     }
 
     public void saveDevice(Device device) throws Exception {
         dao.save(device);
-        hazelcastClient.putDevice(device.getId(), device);
+        saveDeviceToCacheL2(device);
     }
 
     public DeviceState getDeviceState(long deviceId) throws Exception {
-        DeviceState deviceState = hazelcastClient.getDeviceState(deviceId);
+        DeviceState deviceState = getDeviceStateFromCacheL2(deviceId);
         if (deviceState == null)
             deviceState = dao.find(DeviceState.class, deviceId);
 
         return deviceState;
     }
 
+    private synchronized DeviceState getDeviceStateFromCacheL2(long deviceId) {
+        try {
+            return hazelcastClient.getDeviceState(deviceId);
+        } catch (Throwable cause) {
+            LOGGER.error("Get DeviceState from Hazelcast ERROR occurred -> " + cause.getMessage());
+            return null;
+        }
+    }
+
     public Payment getPaymentTelematics(long deviceId) throws Exception {
-        Payment payment = hazelcastClient.getPaymentTelematics(deviceId);
+        Payment payment = getPaymentTelematicsFromCacheL2(deviceId);
         if (payment == null)
             payment = paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_TELEMATICS);
 
         return payment;
     }
 
-    public Payment getPaymentActivation(long deviceId) throws Exception {
-        Payment payment = hazelcastClient.getPaymentTelematics(deviceId);
-        if (payment == null)
-            payment = paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_ACTIVATION);
-
-        return payment;
+    private synchronized Payment getPaymentTelematicsFromCacheL2(long deviceId) {
+        try {
+            return hazelcastClient.getPaymentTelematics(deviceId);
+        } catch (Throwable cause) {
+            LOGGER.error("Get PaymentTelematics from Hazelcast ERROR occurred -> " + cause.getMessage());
+            return null;
+        }
     }
 
-    public void addUserDeviceRequest(Long deviceId, UserDevice userDevice) throws Exception {
-        userDeviceAddRequestCacheL3.put(deviceId, userDevice);
+    public synchronized List<DialogMessageMobileEntity> getUnreadChatMessagesFromCacheL2(long uid) {
+        try {
+            String data = hazelcastClient.getUnreadChatMessagesMap().get(uid);
+            if (!StringUtils.isBlank(data)) {
+                return gson.fromJson(data, new TypeToken<List<DialogMessageMobileEntity>>() {
+                }.getType());
+            } else return null;
+        } catch (Throwable cause) {
+            LOGGER.error("Get UnreadChatMessages from Hazelcast ERROR occurred -> " + cause.getMessage());
+            return null;
+        }
+    }
+
+    public synchronized void removeUnreadChatMessagesFromCacheL2(long uid) {
+        try {
+            hazelcastClient.getUnreadChatMessagesMap().remove(uid);
+        } catch (Throwable cause) {
+            LOGGER.error("Remove UnreadChatMessages from Hazelcast ERROR occurred -> " + cause.getMessage());
+        }
     }
 
     public void restoreUserTokensFromDB() {

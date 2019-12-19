@@ -12,7 +12,7 @@
 
 package com.pelengator.server.mobile.rest.controllers;
 
-import com.pelengator.server.dao.postgresql.DialogDao;
+import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.Dialog;
 import com.pelengator.server.dao.postgresql.entity.DialogMessage;
 import com.pelengator.server.exception.mobile.UnknownException;
@@ -51,17 +51,35 @@ public class DialogController extends BaseController {
             Dialog dialog = this.getCore_().getDao().find(Dialog.class, "userId", uid);
 
             if (dialog == null) {
-                dialog = new Dialog();
-                dialog.setUserId(uid);
-                dialog.setCreatedAt(new Timestamp(new Date().getTime()));
-                this.getCore_().getDao().save(dialog);
-
-                return ResponseEntity.status(HttpStatus.OK).body(
-                        new BaseResponse(HttpStatus.OK.value(), "", new ArrayList<>(0)));
+                dialog = createDialog(uid, true);
             }
 
-            List<DialogDao.DialogMessageMobileEntity> data =
+            List<DialogMessageMobileEntity> data =
                     this.getCore_().getDialogDao().getAllDialogMessages(dialog.getId());
+
+            if (data.size() == 0) {
+                DialogMessage dialogMessage = new DialogMessage();
+                dialogMessage.setDialogId(dialog.getId());
+                dialogMessage.setSenderType(DialogMessage.SENDER_TYPE_SUPPORT);
+                dialogMessage.setSenderId(2L);
+                dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_DEFAULT);
+                dialogMessage.setMessage("Здравствуйте!");
+                dialogMessage.setIsRead(false);
+                dialogMessage.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                this.getCore_().getDao().save(dialogMessage);
+
+                DialogMessageMobileEntity messageMobileEntity = new DialogMessageMobileEntity();
+                messageMobileEntity.setMessageId(dialogMessage.getId());
+                messageMobileEntity.setSenderType(dialogMessage.getSenderType());
+                messageMobileEntity.setMessageType(dialogMessage.getMessageType());
+                messageMobileEntity.setMessageText(dialogMessage.getMessage());
+                messageMobileEntity.setIsRead(0);
+                messageMobileEntity.setMessageTime(dialogMessage.getCreatedAt().getTime() / 1000);
+
+                data.add(messageMobileEntity);
+            }
+
+            this.getCore_().removeUnreadChatMessagesFromCacheL2(uid);
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
@@ -121,9 +139,7 @@ public class DialogController extends BaseController {
             Dialog dialog = this.getCore_().getDao().find(Dialog.class, "userId", uid);
 
             if (dialog == null) {
-                dialog = new Dialog();
-                dialog.setUserId(uid);
-                this.getCore_().getDao().save(dialog);
+                dialog = createDialog(uid, false);
             }
 
             DialogMessage dialogMessage = new DialogMessage();
@@ -136,6 +152,7 @@ public class DialogController extends BaseController {
             dialogMessage.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
 
             dialog.setReadBySupport(false);
+            dialog.setUpdatedAt(new Timestamp(new Date().getTime()));
 
             Session session = this.getCore_().getDao().beginTransaction();
             this.getCore_().getDao().save(dialog, session);

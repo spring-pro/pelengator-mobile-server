@@ -10,35 +10,23 @@
  * Author: Maxim Zemskov, https://www.linkedin.com/in/mzemskov/
  */
 
-package com.pelengator.server.mobile.rest.entity.request.chat;
+package com.pelengator.server.mobile.rest.entity.request.device;
 
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.annotations.Since;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 
-public class DialogSendMessageRequest extends BaseEntity {
+public class DeviceEditSettingsRequest extends BaseEntity {
 
     @Since(1.0)
-    @SerializedName("id")
-    private Long id;
+    @SerializedName("autostart_runtime")
+    private Integer autostartRuntime;
 
-    @Since(1.0)
-    @SerializedName("text")
-    private String message;
-
-    public Long getId() {
-        return id;
+    public Integer getAutostartRuntime() {
+        return autostartRuntime;
     }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
+    public void setAutostartRuntime(Integer autostartRuntime) {
+        this.autostartRuntime = autostartRuntime;
     }
 }

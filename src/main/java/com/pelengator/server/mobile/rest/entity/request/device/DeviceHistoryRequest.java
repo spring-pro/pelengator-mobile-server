@@ -10,35 +10,35 @@
  * Author: Maxim Zemskov, https://www.linkedin.com/in/mzemskov/
  */
 
-package com.pelengator.server.mobile.rest.entity.request.chat;
+package com.pelengator.server.mobile.rest.entity.request.device;
 
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.annotations.Since;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 
-public class DialogSendMessageRequest extends BaseEntity {
+public class DeviceHistoryRequest extends BaseEntity {
 
     @Since(1.0)
-    @SerializedName("id")
-    private Long id;
+    @SerializedName("from")
+    private Long from;
 
     @Since(1.0)
-    @SerializedName("text")
-    private String message;
+    @SerializedName("to")
+    private Long to;
 
-    public Long getId() {
-        return id;
+    public Long getFrom() {
+        return from;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public void setFrom(Long from) {
+        this.from = from;
     }
 
-    public String getMessage() {
-        return message;
+    public Long getTo() {
+        return to;
     }
 
-    public void setMessage(String message) {
-        this.message = message;
+    public void setTo(Long to) {
+        this.to = to;
     }
 }

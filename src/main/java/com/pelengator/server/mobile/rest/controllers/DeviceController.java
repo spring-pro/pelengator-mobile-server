@@ -32,11 +32,14 @@ import com.pelengator.server.mobile.rest.entity.response.device.DeviceStateRespo
 import com.pelengator.server.utils.ApplicationUtility;
 import com.pelengator.server.utils.DeviceLogger;
 import com.pelengator.server.utils.sms.SmsSender;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
@@ -75,10 +78,10 @@ public class DeviceController extends BaseController {
                     device = this.getCore_().getDao().find(Device.class, request.getDeviceId());
                 else
                     device = this.getCore_().getDao().find(Device.class,
-                            this.getCore_().getUserCurrentDevice(uid).getId());
+                            this.getCore_().getUserCurrentDevice(uid));
             } else {
                 device = this.getCore_().getDao().find(Device.class,
-                        this.getCore_().getUserCurrentDevice(uid).getId());
+                        this.getCore_().getUserCurrentDevice(uid));
             }
 
             Payment paymentActivation = this.getCore_().getPaymentDao().getPayedPayment(
@@ -151,16 +154,19 @@ public class DeviceController extends BaseController {
                 throw new IncorrectIMEIException(HttpStatus.OK.value());
 
             if (device.getKitMaintenanceDate() == null)
-                device.setKitMaintenanceDate(new Date(ApplicationUtility.getDateInSecondsWithAddYearsCount(1)));
+                device.setKitMaintenanceDate(new Date(ApplicationUtility.getDateInSecondsWithAddYearsCount(1) * 1000));
 
-            UserDevice userDevice = new UserDevice();
-            userDevice.setUserId(uid);
-            userDevice.setDeviceId(device.getId());
-            userDevice.setCarBrand(request.getCarBrand());
-            userDevice.setCarModel(request.getCarModel());
-            userDevice.setCarNumber(request.getCarNumber());
-            userDevice.setCreatedAt(new Timestamp(System.currentTimeMillis()));
-            userDevice.setConfirmed(false);
+            UserDevice userDevice = this.getCore_().getUserDeviceDao().getUserDevice(uid, device.getId(), false);
+            if (userDevice == null) {
+                userDevice = new UserDevice();
+                userDevice.setUserId(uid);
+                userDevice.setDeviceId(device.getId());
+                userDevice.setCarBrand(request.getCarBrand());
+                userDevice.setCarModel(request.getCarModel());
+                userDevice.setCarNumber(request.getCarNumber());
+                userDevice.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                userDevice.setConfirmed(false);
+            }
 
             try {
                 this.getCore_().getDao().save(userDevice);
@@ -170,7 +176,7 @@ public class DeviceController extends BaseController {
             }
 
             data.setConfirmType("pass");
-            data.setDeviceId(userDevice.getId());
+            data.setDeviceId(userDevice.getDeviceId());
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
@@ -199,7 +205,8 @@ public class DeviceController extends BaseController {
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
-            UserDevice userDevice = this.getCore_().getDao().find(UserDevice.class, request.getDeviceId());
+            List<UserDevice> userDeviceList = this.getCore_().getUserDeviceDao().getUserDeviceList(request.getDeviceId(), 1, true);
+            UserDevice userDevice = this.getCore_().getUserDeviceDao().getUserDevice(uid, request.getDeviceId(), false);
 
             if (userDevice != null) {
                 Device device = this.getCore_().getDao().find(Device.class, userDevice.getDeviceId());
@@ -207,10 +214,19 @@ public class DeviceController extends BaseController {
                 if (device != null) {
                     if (device.getPassword().equals(request.getConfirm())) {
                         userDevice.setConfirmed(true);
+
+                        if (userDeviceList == null || userDeviceList.size() == 0) {
+                            device.setFreeUsageFinishedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0() + (10 * 24 * 60 * 60 * 1000)));
+                            this.getCore_().getDao().save(device);
+                        }
+
                         this.getCore_().getDao().save(userDevice);
-                    }
-                }
-            }
+                    } else
+                        throw new IncorrectDevicePasswordException(HttpStatus.OK.value());
+                } else
+                    throw new UnknownDeviceException(HttpStatus.OK.value());
+            } else
+                LOGGER.error("userDevice is not found!!! -> " + uid + " - " + request.getDeviceId());
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
@@ -311,7 +327,7 @@ public class DeviceController extends BaseController {
             Device device = this.getCore_().setUserCurrentDevice(uid, Long.parseLong(request.getImei()));
 
             DeviceState deviceState =
-                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
+                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid));
 
             if (deviceState != null &&
                     deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
@@ -319,7 +335,7 @@ public class DeviceController extends BaseController {
                 return ResponseEntity.status(HttpStatus.OK).body(
                         new BaseResponse(HttpStatus.OK.value(), "Нет связи с автомобилем!", null));
             } else {
-                sendAutoStatusCmd(device);
+                sendAutoStatusCmd(device, deviceState);
                 return ResponseEntity.status(HttpStatus.OK).body(
                         new BaseResponse(HttpStatus.OK.value(), "", null));
             }
@@ -342,7 +358,302 @@ public class DeviceController extends BaseController {
 
         try {
             Gson gson = new Gson();
-            DeviceSettingsResponse data = gson.fromJson("{\"buttons\":{\"bottom\":[{\"id\":201,\"v\":1},{\"id\":208,\"v\":1},{\"id\":209,\"v\":1},{\"id\":205,\"v\":1},{\"id\":206,\"v\":1},{\"id\":202,\"v\":1}],\"main\":[{\"enable\":1,\"id\":19,\"need_pin\":false,\"long_press\":true,\"button_settings\":[{\"status\":0,\"cmd\":\"/device/cmd/arm_on\",\"name\":\"Включить охрану\"},{\"status\":1,\"cmd\":\"\",\"name\":\"Ожидание ответа от сервера\"},{\"status\":2,\"cmd\":\"/device/cmd/arm_off\",\"name\":\"Выключить охрану\"}]},{\"enable\":1,\"id\":6,\"need_pin\":false,\"long_press\":true,\"button_settings\":[{\"status\":0,\"cmd\":\"/device/cmd/sos_on\",\"name\":\"Включить sos\"},{\"status\":1,\"cmd\":\"\",\"name\":\"Ожидание ответа от сервера\"},{\"status\":2,\"cmd\":\"/device/cmd/sos_off\",\"name\":\"Выключить sos\"}]},{\"enable\":0,\"id\":1,\"need_pin\":false,\"long_press\":true,\"button_settings\":[{\"status\":0,\"cmd\":\"/device/cmd/engine_on\",\"name\":\"Включить двигатель\"},{\"status\":1,\"cmd\":\"\",\"name\":\"Ожидание ответа от сервера\",\"image\":\"1_2\",\"sound\":\"\"},{\"status\":2,\"cmd\":\"/device/cmd/engine_off\",\"name\":\"Выключить двигатель\"}]},{\"enable\":1,\"id\":5,\"need_pin\":true,\"long_press\":true,\"button_settings\":[{\"status\":0,\"cmd\":\"/device/cmd/block_on\",\"name\":\"Включить блокировку\"},{\"status\":1,\"cmd\":\"\",\"name\":\"Ожидание ответа от сервера\"},{\"status\":2,\"cmd\":\"/device/cmd/block_off\",\"name\":\"Выключить блокировку\"}]},{\"enable\":1,\"id\":3,\"need_pin\":false,\"long_press\":false,\"name\":\"Местоположение\",\"button_action\":\"show_position\",\"image\":\"3_1\"},{\"enable\":1,\"id\":12,\"need_pin\":false,\"long_press\":true,\"button_settings\":[{\"status\":0,\"cmd\":\"/device/cmd/alarm_on\",\"name\":\"Включить тревогу\"},{\"status\":1,\"cmd\":\"\",\"name\":\"Ожидание ответа от сервера\"},{\"status\":2,\"cmd\":\"/device/cmd/alarm_off\",\"name\":\"Выключить тревогу\"}]},{\"enable\":1,\"id\":5,\"need_pin\":true,\"long_press\":true,\"button_settings\":[{\"status\":0,\"cmd\":\"/device/cmd/block_on\",\"name\":\"Включить блокировку\"},{\"status\":1,\"cmd\":\"\",\"name\":\"Ожидание ответа от сервера\"},{\"status\":2,\"cmd\":\"/device/cmd/block_off\",\"name\":\"Выключить блокировку\"}]},{\"enable\":1,\"id\":18,\"need_pin\":false,\"long_press\":false,\"name\":\"История\",\"button_action\":\"show_history\",\"image\":\"18_1\"},{\"enable\":1,\"id\":4,\"need_pin\":false,\"long_press\":true,\"button_settings\":[{\"status\":0,\"cmd\":\"/device/cmd/service_on\",\"name\":\"Включить сервисный режим\"},{\"status\":1,\"cmd\":\"\",\"name\":\"Ожидание ответа от сервера\"},{\"status\":2,\"cmd\":\"/device/cmd/service_off\",\"name\":\"Выключить сервисный режим\"}]},{\"enable\":1,\"id\":17,\"need_pin\":false,\"long_press\":false,\"name\":\"Инструкция\",\"button_action\":\"show_manual\",\"image\":\"17_1\"},{\"enable\":1,\"id\":13,\"need_pin\":false,\"long_press\":false,\"name\":\"Микрофон\",\"button_action\":\"show_microphone\",\"image\":\"13_1\"},{\"enable\":1,\"id\":2,\"need_pin\":false,\"long_press\":false,\"name\":\"Трекинг\",\"button_action\":\"show_tracking\",\"image\":\"2_1\"}]},\"balance_in_menu\":true,\"autostart_runtime\":10,\"all_buttons\":[{\"id\":19,\"v\":1},{\"id\":6,\"v\":1},{\"id\":1,\"v\":1},{\"id\":8,\"v\":1},{\"id\":3,\"v\":1},{\"id\":12,\"v\":1},{\"id\":5,\"v\":1},{\"id\":18,\"v\":1},{\"id\":4,\"v\":1},{\"id\":17,\"v\":1},{\"id\":13,\"v\":1},{\"id\":2,\"v\":1}]}", DeviceSettingsResponse.class);
+            DeviceSettingsResponse data = gson.fromJson("{\n" +
+                    "    \"buttons\": {\n" +
+                    "        \"bottom\": [\n" +
+                    "            {\n" +
+                    "                \"id\": 201,\n" +
+                    "                \"v\": 1\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"id\": 208,\n" +
+                    "                \"v\": 1\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"id\": 209,\n" +
+                    "                \"v\": 1\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"id\": 205,\n" +
+                    "                \"v\": 1\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"id\": 206,\n" +
+                    "                \"v\": 1\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"id\": 202,\n" +
+                    "                \"v\": 1\n" +
+                    "            }\n" +
+                    "        ],\n" +
+                    "        \"main\": [\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 19,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": true,\n" +
+                    "                \"button_settings\": [\n" +
+                    "                    {\n" +
+                    "                        \"status\": 0,\n" +
+                    "                        \"cmd\": \"/device/cmd/arm_on\",\n" +
+                    "                        \"name\": \"Включить охрану\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 1,\n" +
+                    "                        \"cmd\": \"\",\n" +
+                    "                        \"name\": \"Ожидание ответа от сервера\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 2,\n" +
+                    "                        \"cmd\": \"/device/cmd/arm_off\",\n" +
+                    "                        \"name\": \"Выключить охрану\"\n" +
+                    "                    }\n" +
+                    "                ]\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 6,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": true,\n" +
+                    "                \"button_settings\": [\n" +
+                    "                    {\n" +
+                    "                        \"status\": 0,\n" +
+                    "                        \"cmd\": \"/device/cmd/sos_on\",\n" +
+                    "                        \"name\": \"Включить sos\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 1,\n" +
+                    "                        \"cmd\": \"\",\n" +
+                    "                        \"name\": \"Ожидание ответа от сервера\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 2,\n" +
+                    "                        \"cmd\": \"/device/cmd/sos_off\",\n" +
+                    "                        \"name\": \"Выключить sos\"\n" +
+                    "                    }\n" +
+                    "                ]\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 0,\n" +
+                    "                \"id\": 1,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": true,\n" +
+                    "                \"button_settings\": [\n" +
+                    "                    {\n" +
+                    "                        \"status\": 0,\n" +
+                    "                        \"cmd\": \"/device/cmd/engine_on\",\n" +
+                    "                        \"name\": \"Включить двигатель\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 1,\n" +
+                    "                        \"cmd\": \"\",\n" +
+                    "                        \"name\": \"Ожидание ответа от сервера\",\n" +
+                    "                        \"image\": \"1_2\",\n" +
+                    "                        \"sound\": \"\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 2,\n" +
+                    "                        \"cmd\": \"/device/cmd/engine_off\",\n" +
+                    "                        \"name\": \"Выключить двигатель\"\n" +
+                    "                    }\n" +
+                    "                ]\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 8,\n" +
+                    "                \"need_pin\": true,\n" +
+                    "                \"long_press\": true,\n" +
+                    "                \"button_settings\": [\n" +
+                    "                    {\n" +
+                    "                        \"status\": 0,\n" +
+                    "                        \"cmd\": \"/device/cmd/locking_on\",\n" +
+                    "                        \"name\": \"Закрыть ЦЗу\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 1,\n" +
+                    "                        \"cmd\": \"\",\n" +
+                    "                        \"name\": \"Ожидание ответа от сервера\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 2,\n" +
+                    "                        \"cmd\": \"/device/cmd/locking_off\",\n" +
+                    "                        \"name\": \"Открыть ЦЗ\"\n" +
+                    "                    }\n" +
+                    "                ]\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 3,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": false,\n" +
+                    "                \"name\": \"Местоположение\",\n" +
+                    "                \"button_action\": \"show_position\",\n" +
+                    "                \"image\": \"3_1\"\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 12,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": true,\n" +
+                    "                \"button_settings\": [\n" +
+                    "                    {\n" +
+                    "                        \"status\": 0,\n" +
+                    "                        \"cmd\": \"/device/cmd/alarm_on\",\n" +
+                    "                        \"name\": \"Включить тревогу\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 1,\n" +
+                    "                        \"cmd\": \"\",\n" +
+                    "                        \"name\": \"Ожидание ответа от сервера\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 2,\n" +
+                    "                        \"cmd\": \"/device/cmd/alarm_off\",\n" +
+                    "                        \"name\": \"Выключить тревогу\"\n" +
+                    "                    }\n" +
+                    "                ]\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 5,\n" +
+                    "                \"need_pin\": true,\n" +
+                    "                \"long_press\": true,\n" +
+                    "                \"button_settings\": [\n" +
+                    "                    {\n" +
+                    "                        \"status\": 0,\n" +
+                    "                        \"cmd\": \"/device/cmd/block_on\",\n" +
+                    "                        \"name\": \"Включить блокировку\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 1,\n" +
+                    "                        \"cmd\": \"\",\n" +
+                    "                        \"name\": \"Ожидание ответа от сервера\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 2,\n" +
+                    "                        \"cmd\": \"/device/cmd/block_off\",\n" +
+                    "                        \"name\": \"Выключить блокировку\"\n" +
+                    "                    }\n" +
+                    "                ]\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 18,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": false,\n" +
+                    "                \"name\": \"История\",\n" +
+                    "                \"button_action\": \"show_history\",\n" +
+                    "                \"image\": \"18_1\"\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 4,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": true,\n" +
+                    "                \"button_settings\": [\n" +
+                    "                    {\n" +
+                    "                        \"status\": 0,\n" +
+                    "                        \"cmd\": \"/device/cmd/service_on\",\n" +
+                    "                        \"name\": \"Включить сервисный режим\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 1,\n" +
+                    "                        \"cmd\": \"\",\n" +
+                    "                        \"name\": \"Ожидание ответа от сервера\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 2,\n" +
+                    "                        \"cmd\": \"/device/cmd/service_off\",\n" +
+                    "                        \"name\": \"Выключить сервисный режим\"\n" +
+                    "                    }\n" +
+                    "                ]\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 17,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": false,\n" +
+                    "                \"name\": \"Инструкция\",\n" +
+                    "                \"button_action\": \"show_manual\",\n" +
+                    "                \"image\": \"17_1\"\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 13,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": false,\n" +
+                    "                \"name\": \"Микрофон\",\n" +
+                    "                \"button_action\": \"show_microphone\",\n" +
+                    "                \"image\": \"13_1\"\n" +
+                    "            },\n" +
+                    "            {\n" +
+                    "                \"enable\": 1,\n" +
+                    "                \"id\": 2,\n" +
+                    "                \"need_pin\": false,\n" +
+                    "                \"long_press\": false,\n" +
+                    "                \"name\": \"Трекинг\",\n" +
+                    "                \"button_action\": \"show_tracking\",\n" +
+                    "                \"image\": \"2_1\"\n" +
+                    "            }\n" +
+                    "        ]\n" +
+                    "    },\n" +
+                    "    \"balance_in_menu\": true,\n" +
+                    "    \"autostart_runtime\": 10,\n" +
+                    "    \"all_buttons\": [\n" +
+                    "        {\n" +
+                    "            \"id\": 19,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 6,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 1,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 8,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 3,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 12,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 5,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 18,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 4,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 17,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 13,\n" +
+                    "            \"v\": 1\n" +
+                    "        },\n" +
+                    "        {\n" +
+                    "            \"id\": 2,\n" +
+                    "            \"v\": 1\n" +
+                    "        }\n" +
+                    "    ]\n" +
+                    "}", DeviceSettingsResponse.class);
+
+            UserSettings userSettings = this.getCore_().getSettings(uid);
+            if (userSettings.getAutoStartRuntime() != null && userSettings.getAutoStartRuntime() > 0)
+                data.setAutostartRuntime(userSettings.getAutoStartRuntime());
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
@@ -437,8 +748,7 @@ public class DeviceController extends BaseController {
                     "        \"enable\": 0\n" +
                     "      },\n" +
                     "      {\n" +
-                    "        \"id\": 5,\n" +
-                    "        \"state_id\": 0,\n" +
+                    "        \"id\": 8,\n" +
                     "        \"enable\": 0\n" +
                     "      },\n" +
                     "      {\n" +
@@ -489,7 +799,7 @@ public class DeviceController extends BaseController {
             DeviceStateResponse data = gson.fromJson(stateTemp, DeviceStateResponse.class);
             List<Map<String, Object>> bottomButtonsList = data.getButtons().get("bottom");
 
-            Device currentDevice = this.getCore_().getUserCurrentDevice(uid);
+            Device currentDevice = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
             if (currentDevice == null)
                 // If current device is not set
                 return ResponseEntity.status(HttpStatus.OK).body(
@@ -499,12 +809,12 @@ public class DeviceController extends BaseController {
                     this.getCore_().getDeviceState(currentDevice.getId());
 
             if (deviceState != null) {
+                User user = this.getCore_().getUserByToken(token);
                 Device device = this.getCore_().getDevice(deviceState.getDeviceId());
                 Payment payment = this.getCore_().getPaymentTelematics(deviceState.getDeviceId());
 
                 int kitMaintenanceStateDays = device.getKitMaintenanceDate() == null ? 0 :
-                        ((int) ((ApplicationUtility.getDateInSecondsWithAddMonthCount(
-                                device.getKitMaintenanceDate(), 12)
+                        ((int) ((ApplicationUtility.getDateInSeconds(device.getKitMaintenanceDate())
                                 - ApplicationUtility.getDateInSeconds()) / (60 * 60 * 24)));
 
                 int payFullPeriodDays = getPayTelematicsFullPeriodDays(payment);
@@ -514,10 +824,11 @@ public class DeviceController extends BaseController {
                         this.getCore_().getDeviceCmdInProgress().get(deviceState.getDeviceId());
 
                 data.getButtons().get("main").forEach(item -> {
-                    if (!device.getIsActivated() ||
-                            (payStateDays == 0 &&
-                                    (device.getFreeUsageFinishedAt() == null ||
-                                            device.getFreeUsageFinishedAt().getTime() < ApplicationUtility.getCurrentTimeStampGMT_0()))
+                    if (user.getTypeId() != 3 &&
+                            (!device.getIsActivated() ||
+                                    (payStateDays <= 0 &&
+                                            (device.getFreeUsageFinishedAt() == null ||
+                                                    device.getFreeUsageFinishedAt().getTime() < ApplicationUtility.getCurrentTimeStampGMT_0())))
                     ) {
                         if ((17 != Math.round((Double) item.get("id"))) && (4 != Math.round((Double) item.get("id")))) {
                             item.put("enable", 0);
@@ -530,15 +841,22 @@ public class DeviceController extends BaseController {
                             item.put("enable", 0);
                         }
                     } else {
+                        item.put("enable", 1);
                         if (19 == Math.round((Double) item.get("id"))) {
                             this.getCore_().getCmdBtnState(cmdIpProgress, item, "arm",
                                     deviceState.isArmStatus());
                         } else if (1 == Math.round((Double) item.get("id"))) {
-                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "engine",
-                                    deviceState.isTachometerStatus());
+                            if (deviceState.isFortinStatus())
+                                this.getCore_().getCmdBtnState(cmdIpProgress, item, "engine",
+                                        deviceState.isTachometerStatus());
+                            else
+                                item.put("enable", 0);
                         } else if (5 == Math.round((Double) item.get("id"))) {
                             this.getCore_().getCmdBtnState(cmdIpProgress, item, "block",
                                     deviceState.isAhyStatus());
+                        } else if (8 == Math.round((Double) item.get("id"))) {
+                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "lock",
+                                    deviceState.isCentralLockStatus());
                         } else if (4 == Math.round((Double) item.get("id"))) {
                             this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
                                     deviceState.isValetStatus());
@@ -579,7 +897,7 @@ public class DeviceController extends BaseController {
                         }
                     });
 
-                    if (payStateDays == 0 && (device.getFreeUsageFinishedAt() == null ||
+                    if (payStateDays <= 0 && (device.getFreeUsageFinishedAt() == null ||
                             device.getFreeUsageFinishedAt().getTime() > ApplicationUtility.getCurrentTimeStampGMT_0())) {
 
                         int freeUsageDays = 0;
@@ -638,10 +956,10 @@ public class DeviceController extends BaseController {
             boolean isSendCmdToGateway = true;
             int sentMessagesCount = 0;
 
-            Device device = this.getCore_().getUserCurrentDevice(uid);
+            Device device = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
 
             DeviceState deviceState =
-                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
+                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid));
 
             DeviceLog deviceLog = new DeviceLog();
             deviceLog.setDeviceId(device.getId());
@@ -662,8 +980,17 @@ public class DeviceController extends BaseController {
 
             switch (cmd) {
                 case "engine_on": {
+                    ByteBuf resultCmd = Unpooled.buffer().writeBytes(AutofonCommands.AUTOFON_CMD_ENGINE_START.duplicate());
+
+                    UserSettings userSettings = this.getCore_().getSettings(uid);
+                    if (userSettings.getAutoStartRuntime() != null && userSettings.getAutoStartRuntime() > 0) {
+                        resultCmd.writeByte((byte) (userSettings.getAutoStartRuntime() & 255));
+                    } else {
+                        resultCmd.writeByte((byte) (10 & 255));
+                    }
+
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
-                            AutofonCommands.AUTOFON_CMD_ENGINE_START.toString(StandardCharsets.ISO_8859_1)));
+                            resultCmd.toString(StandardCharsets.ISO_8859_1)));
                     getCore_().addDeviceCmdInProgress(device.getId(), "engine", false);
                     break;
                 }
@@ -697,6 +1024,18 @@ public class DeviceController extends BaseController {
                     getCore_().addDeviceCmdInProgress(device.getId(), "block", true);
                     break;
                 }
+                case "locking_on": {
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
+                            AutofonCommands.AUTOFON_CMD_LOCK.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "lock", false);
+                    break;
+                }
+                case "locking_off": {
+                    response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
+                            AutofonCommands.AUTOFON_CMD_UNLOCK.toString(StandardCharsets.ISO_8859_1)));
+                    getCore_().addDeviceCmdInProgress(device.getId(), "lock", true);
+                    break;
+                }
                 case "alarm_on": {
                     response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                             AutofonCommands.AUTOFON_CMD_SEARCH_CAR.toString(StandardCharsets.ISO_8859_1)));
@@ -717,8 +1056,8 @@ public class DeviceController extends BaseController {
                 }
                 case "sos_on": {
                     isSendCmdToGateway = false;
-                    UserSettings userSettings = this.getCore_().getDao().find(UserSettings.class, uid);
-                    if (userSettings != null && !StringUtils.isBlank(userSettings.getSosPhones())) {
+                    UserSettings userSettings = this.getCore_().getSettings(uid);
+                    if (!StringUtils.isBlank(userSettings.getSosPhones())) {
                         User user = this.getCore_().getDao().find(User.class, uid);
 
                         String[] sosPhones = userSettings.getSosPhones().split(",", -1);
@@ -729,13 +1068,15 @@ public class DeviceController extends BaseController {
                                             "ситуации от пользователя тел. " + user.getPhone() + " , позиция: " +
                                             "https://maps.yandex.ru?text=" + deviceState.getLatitude() + "," + deviceState.getLongitude()))
                                         sentMessagesCount++;
+
+                                    getCore_().addDeviceCmdInProgress(device.getId(), "sos", false);
                                 } catch (Throwable cause) {
+                                    getCore_().addDeviceCmdInProgress(device.getId(), "sos", true);
                                     LOGGER.error("SEND SMS FATAL error -> " + cause.getMessage());
                                 }
                             }
                         }
                     }
-                    getCore_().addDeviceCmdInProgress(device.getId(), "sos", false);
                     break;
                 }
                 default: {
@@ -785,7 +1126,7 @@ public class DeviceController extends BaseController {
 
             DevicePositionResponse data = new DevicePositionResponse();
             DeviceState deviceState =
-                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
+                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid));
 
             if (deviceState != null) {
                 data.setPositionUpdatedAt(ApplicationUtility.getDateTimeInSeconds(deviceState.getPositionLastUpdatedAt()));
@@ -819,8 +1160,7 @@ public class DeviceController extends BaseController {
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
-            DeviceState deviceState =
-                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid).getId());
+            Device device = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
 
             Timestamp dateFrom;
             Timestamp dateTo;
@@ -847,7 +1187,7 @@ public class DeviceController extends BaseController {
 
             List<DevicePositionDao.DevisePositionTracking> data =
                     this.getCore_().getDevicePositionDao().getDevisePositionTrackingList(
-                            deviceState.getDeviceId(),
+                            device.getId(),
                             dateFrom,
                             dateTo
                     );
@@ -891,6 +1231,135 @@ public class DeviceController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (Throwable cause) {
             LOGGER.error("REQUEST error -> /device/edit/kick_user: ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/edit/settings/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity editSettings(@PathVariable("token") String token,
+                                       @PathVariable("uid") long uid,
+                                       @RequestParam(name = "d", defaultValue = "") String requestBody) {
+
+        try {
+            DeviceEditSettingsRequest request =
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
+                            DeviceEditSettingsRequest.class);
+
+            UserSettings userSettings = this.getCore_().getSettings(uid);
+            if (request.getAutostartRuntime() != null)
+                userSettings.setAutoStartRuntime(request.getAutostartRuntime());
+
+            this.getCore_().getDao().save(userSettings);
+
+            return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> /device/edit/settings: ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/master_add/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity addMaster(@PathVariable("token") String token,
+                                    @PathVariable("uid") long uid,
+                                    @RequestParam(name = "d", defaultValue = "") String requestBody) {
+
+        try {
+            DeviceAddMasterRequest request =
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
+                            DeviceAddMasterRequest.class);
+
+            User user = this.getCore_().getDao().find(User.class, uid);
+            if (user != null && user.getTypeId() == 3 && new BCryptPasswordEncoder().matches(request.getPassword(), user.getPassword())) {
+                Device device = this.getCore_().getDeviceDao().getDevice(request.getSerialNumber());
+                if (device == null)
+                    return ResponseEntity.status(HttpStatus.OK).body(
+                            new BaseResponse(HttpStatus.NOT_FOUND.value(), "Неверный серийный номер", null));
+
+                if (!device.getMasterModeStatus())
+                    return ResponseEntity.status(HttpStatus.OK).body(
+                            new BaseResponse(HttpStatus.NOT_FOUND.value(), "Не активирован режим мастера", null));
+
+                UserDevice userDevice = new UserDevice();
+                userDevice.setUserId(uid);
+                userDevice.setDeviceId(device.getId());
+                userDevice.setCarNumber(StringUtils.trimToEmpty(request.getCarNumber()));
+                userDevice.setCarModel("Master Mode");
+                userDevice.setCarBrand(StringUtils.trimToEmpty(request.getKitName()));
+                userDevice.setConfirmed(true);
+                userDevice.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                this.getCore_().getDao().save(userDevice);
+            } else
+                throw new UserNotFoundException(HttpStatus.OK.value());
+
+            return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
+        } catch (BaseException e) {
+            LOGGER.error("REQUEST error -> /device/master_add: " + e.getMessage());
+            return ResponseEntity.status(e.getCode()).body(
+                    new ErrorResponse(e.getLocalCode(), e.getMessage()));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> /device/master_add: ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/get/history/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity getDeviceHistory(@PathVariable("token") String token,
+                                           @PathVariable("uid") long uid,
+                                           @RequestParam(name = "d", defaultValue = "") String requestBody) {
+
+        try {
+            DeviceHistoryRequest request =
+                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
+                            DeviceHistoryRequest.class);
+
+            if (request == null)
+                throw new UnknownException(HttpStatus.OK.value());
+
+            Device device = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
+
+            Timestamp dateFrom;
+            Timestamp dateTo;
+            if (request.getFrom() == null && request.getTo() == null) {
+                dateFrom = new Timestamp(ApplicationUtility.getDateInSeconds() * 1000);
+                dateTo = new Timestamp((ApplicationUtility.getDateInSecondsWithAddDaysCount(1) - 1) * 1000);
+            } else {
+                Calendar calendar = Calendar.getInstance();
+                calendar.setTimeInMillis(request.getFrom() * 1000);
+
+                if (calendar.get(Calendar.HOUR_OF_DAY) != 0)
+                    calendar.add(Calendar.HOUR_OF_DAY, 24 - calendar.get(Calendar.HOUR_OF_DAY));
+
+                dateFrom = new Timestamp(calendar.getTimeInMillis());
+
+
+                calendar.setTimeInMillis(request.getTo() * 1000);
+
+                if (calendar.get(Calendar.HOUR_OF_DAY) != 23)
+                    calendar.add(Calendar.HOUR_OF_DAY, 23 - calendar.get(Calendar.HOUR_OF_DAY));
+
+                dateTo = new Timestamp(calendar.getTimeInMillis());
+            }
+
+            List<DevicePositionDao.DevisePositionTracking> data =
+                    this.getCore_().getDevicePositionDao().getDevisePositionTrackingList(
+                            device.getId(),
+                            dateFrom,
+                            dateTo
+                    );
+
+
+            return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> /device/get/history: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }

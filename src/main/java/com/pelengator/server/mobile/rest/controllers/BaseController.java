@@ -85,7 +85,7 @@ public abstract class BaseController {
         }
     }
 
-    protected void sendAutoStatusCmd(Device device) {
+    protected void sendAutoStatusCmd(Device device, DeviceState deviceState) {
 
         try {
             DeviceLog deviceLog = new DeviceLog();
@@ -105,11 +105,41 @@ public abstract class BaseController {
             BaseCmdResponse response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
                     AutofonCommands.AUTOFON_CMD_GET_STATUS_AUTO_INFO.toString(StandardCharsets.ISO_8859_1)));
 
-            if (response.getCode() == HttpStatus.OK.value())
+            if (response.getCode() == HttpStatus.OK.value()) {
                 deviceLog.setSent(true);
-            else
+            } else {
                 deviceLog.setSent(false);
+            }
+
             this.getCore_().getDao().save(deviceLog);
+
+            if (deviceState != null && !deviceState.isSpr4() && !deviceState.isSpr7() && !deviceState.isSpr12() && !deviceState.isSpr15() &&
+                    !deviceState.isT5() && !deviceState.isT15()) {
+
+                deviceLog = new DeviceLog();
+                deviceLog.setDeviceId(device.getId());
+                deviceLog.setAdminId(null);
+                deviceLog.setUserId(null);
+                deviceLog.setSenderType(DeviceLog.CommandSenderTypeEnum.SERVER.name());
+                deviceLog.setLogType(DeviceLogger.LOG_TYPE_OUTPUT_EVENT);
+                deviceLog.setEventType(0);
+                deviceLog.setMessage("complexInfo");
+                deviceLog.setDescription("");
+                deviceLog.setErrMsg("");
+                deviceLog.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                deviceLog.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                this.getCore_().getDao().save(deviceLog);
+
+                response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
+                        AutofonCommands.AUTOFON_CMD_GET_HARDWARE_INFO.toString(StandardCharsets.ISO_8859_1)));
+
+                if (response.getCode() == HttpStatus.OK.value())
+                    deviceLog.setSent(true);
+                else
+                    deviceLog.setSent(false);
+
+                this.getCore_().getDao().save(deviceLog);
+            }
         } catch (Throwable cause) {
             LOGGER.error("SERVER CMD -> sendAutoStatusCmd: ", cause);
         }

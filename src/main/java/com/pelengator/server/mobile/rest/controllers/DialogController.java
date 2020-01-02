@@ -31,9 +31,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 @RestController
 @RequestMapping("/chat")
@@ -79,8 +77,6 @@ public class DialogController extends BaseController {
                 data.add(messageMobileEntity);
             }
 
-            this.getCore_().removeUnreadChatMessagesFromCacheL2(uid);
-
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
@@ -110,6 +106,8 @@ public class DialogController extends BaseController {
                         "(".concat(request.getIds()).concat(")"), null
                 );
             }
+
+            this.getCore_().removeUnreadChatMessagesFromCacheL2(uid);
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", null));
@@ -159,8 +157,11 @@ public class DialogController extends BaseController {
             this.getCore_().getDao().save(dialogMessage, session);
             this.getCore_().getDao().commitTransaction(session);
 
+            Map<String, Long> data = new HashMap<>(1);
+            data.put("id", request.getId());
+
             return ResponseEntity.status(HttpStatus.OK).body(
-                    new BaseResponse(HttpStatus.OK.value(), "", null));
+                    new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
             LOGGER.error("REQUEST error -> /chat/send: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(

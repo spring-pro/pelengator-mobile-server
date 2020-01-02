@@ -14,8 +14,8 @@ package com.pelengator.server.mobile.rest.controllers;
 
 import com.pelengator.server.dao.postgresql.UserDao;
 import com.pelengator.server.dao.postgresql.dto.ConnectedUsersForMobile;
+import com.pelengator.server.dao.postgresql.entity.Device;
 import com.pelengator.server.dao.postgresql.entity.User;
-import com.pelengator.server.dao.postgresql.entity.UserDevice;
 import com.pelengator.server.dao.postgresql.entity.UserPushToken;
 import com.pelengator.server.dao.postgresql.entity.UserSettings;
 import com.pelengator.server.exception.mobile.*;
@@ -63,8 +63,10 @@ public class UserController extends BaseController {
             if (user == null) {
                 user = new User();
                 user.setPhone(request.getPhoneNum());
-                user.setAccountNum("");
+                user.setFullName("");
                 user.setTypeId(1L);
+                user.setComment("");
+                user.setPassword("");
                 user.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
 
                 getCore_().getDao().save(user);
@@ -72,7 +74,7 @@ public class UserController extends BaseController {
 
             user.setAccountNum(
                     ApplicationUtility.milliSecondsToFormattedString(
-                            ApplicationUtility.getCurrentTimeStampGMT_0(), null, "yyMMdd")
+                            ApplicationUtility.getCurrentTimeStampGMT_0(), ApplicationUtility.GMT_0, "yyMMdd")
                             .concat(String.format("%06d", user.getId())));
             getCore_().getDao().save(user);
 
@@ -234,7 +236,7 @@ public class UserController extends BaseController {
             List<UserDao.UserConfigForMobileEntity> alarmDevicesList =
                     this.getCore_().getUserDao().getUserConfigForMobile(uid);
 
-            UserSettings userSettings = this.getCore_().getDao().find(UserSettings.class, uid);
+            UserSettings userSettings = this.getCore_().getSettings(uid);
             List<Map> alarmDevicesResultList = new ArrayList<>();
             int index = 0;
             for (UserDao.UserConfigForMobileEntity item : alarmDevicesList) {
@@ -254,18 +256,15 @@ public class UserController extends BaseController {
                 alarmDeviceItem.put("access_type", "3");
                 alarmDeviceItem.put("pay_status", 1);
 
-                if (index == 1 && uid == item.getUserId()) {
-                    // Если этот пользователь первым подключил устройство - является владельцем
-
-                    List<ConnectedUsersForMobile> connectedUsersForMobileList = this.getCore_().getUserDeviceDao().getConnectedUsers(item.getDeviceId());
-                    if (connectedUsersForMobileList != null && connectedUsersForMobileList.size() > 0) {
+                List<ConnectedUsersForMobile> connectedUsersForMobileList = this.getCore_().getUserDeviceDao().getConnectedUsers(item.getDeviceId());
+                if (connectedUsersForMobileList != null && connectedUsersForMobileList.size() > 0) {
+                    if (uid == connectedUsersForMobileList.get(0).getId()) {
                         for (ConnectedUsersForMobile connectedUsersForMobile : connectedUsersForMobileList) {
                             List<Object> deviceConnectedUsersList = new ArrayList<>(3);
                             deviceConnectedUsersList.add(connectedUsersForMobile.getPhone());
                             deviceConnectedUsersList.add(ApplicationUtility.milliSecondsToFormattedString(
                                     connectedUsersForMobile.getCreatedAt().getTime(),
                                     ApplicationUtility.GMT_3, ApplicationUtility.DATE_FORMAT));
-                            deviceConnectedUsersList.add(connectedUsersForMobile.getId());
                             connectedUsers.add(deviceConnectedUsersList);
                         }
                     }
@@ -309,12 +308,7 @@ public class UserController extends BaseController {
             UserEditSosRequest request =
                     BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), UserEditSosRequest.class);
 
-            UserSettings userSettings = this.getCore_().getDao().find(UserSettings.class, uid);
-
-            if (userSettings == null) {
-                userSettings = new UserSettings();
-                userSettings.setUserId(uid);
-            }
+            UserSettings userSettings = this.getCore_().getSettings(uid);
 
             String[] sosPhones = StringUtils.isBlank(userSettings.getSosPhones()) ? new String[]{"", "", ""} :
                     userSettings.getSosPhones().split(",", -1);
@@ -357,10 +351,16 @@ public class UserController extends BaseController {
                 throw new UnknownException(HttpStatus.OK.value());
 
             UserPushToken userPushToken = this.getCore_().getDao().find(UserPushToken.class, "userId", uid);
+            User user = this.getCore_().getDao().find(User.class, uid);
 
-            if (userPushToken != null && StringUtils.isBlank(request.getFmsId()))
+            if (userPushToken != null && StringUtils.isBlank(request.getFmsId())) {
+                if (user.getTypeId() == 3 && this.getCore_().getUserCurrentDevice(uid) > 0) {
+                    Device currentDevice = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
+                    this.getCore_().getUserDeviceDao().delete(uid, currentDevice.getId());
+                }
+
                 this.getCore_().getDao().delete(userPushToken);
-            else {
+            } else {
                 if (userPushToken == null) {
                     userPushToken = new UserPushToken();
                     userPushToken.setUserId(uid);

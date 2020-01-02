@@ -25,9 +25,11 @@ import com.pelengator.server.mobile.rest.ErrorResponse;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 import com.pelengator.server.mobile.rest.entity.request.payment.PaymentGetUrlRequest;
 import com.pelengator.server.mobile.rest.entity.response.payment.PaymentStatusDataResponse;
+import com.pelengator.server.utils.ApplicationConstants;
 import com.pelengator.server.utils.ApplicationUtility;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
+import org.hibernate.Session;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -67,7 +69,7 @@ public class PaymentController extends BaseController {
                     break;
             }
 
-            Device device = this.getCore_().getUserCurrentDevice(uid);
+            Device device = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
 
             String paymentToken = ApplicationUtility.getToken(
                     String.valueOf(uid)
@@ -114,6 +116,7 @@ public class PaymentController extends BaseController {
 
         Map<String, Integer> data = new HashMap<>(1);
         try {
+            Device device = null;
 
             Payment payment = this.getCore_().getPaymentDao().getPayment(
                     Long.parseLong(invoiceId), accountId, Payment.PAY_STATUS_CREATED);
@@ -135,6 +138,10 @@ public class PaymentController extends BaseController {
                     payment.setStatus(Payment.PAY_STATUS_AUTHORIZED);
                     break;
                 case "Completed":
+                    device = this.getCore_().getDao().find(Device.class, payment.getDeviceId());
+                    if (device != null)
+                        device.setIsActivated(true);
+
                     payment.setStatus(Payment.PAY_STATUS_CASHLESS);
                     break;
                 case "Cancelled":
@@ -146,10 +153,20 @@ public class PaymentController extends BaseController {
             }
 
             if (statusDataResponse != null)
-            payment.setPayPeriodMonths(statusDataResponse.getPeriod());
+                payment.setPayPeriodMonths(statusDataResponse.getPeriod());
             payment.setComment(description);
             payment.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
-            this.getCore_().getDao().save(payment);
+
+            if (device == null) {
+                this.getCore_().getDao().save(payment);
+            } else {
+                Session session = this.getCore_().getDao().beginTransaction();
+                this.getCore_().getDao().save(payment, session);
+                this.getCore_().getDao().save(device, session);
+                this.getCore_().getDao().commitTransaction(session);
+            }
+
+            this.getCore_().getHazelcastClient().putPaymentTelematics(payment.getDeviceId(), payment);
 
             data.put("code", 0);
             return ResponseEntity.status(HttpStatus.OK).body(data);

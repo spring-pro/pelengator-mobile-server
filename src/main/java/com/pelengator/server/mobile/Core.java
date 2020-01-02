@@ -45,13 +45,13 @@ public class Core {
     private Map<String, Integer> userSmsMapCacheL3 = new ConcurrentHashMap<>();
     private Map<String, String> userPhoneTokenMapCacheL3 = new ConcurrentHashMap<>();
     private Map<String, User> phoneUserMapCacheL3 = new ConcurrentHashMap<>();
-    private Map<Long, Device> userCurrentDeviceCacheL3 = new ConcurrentHashMap<>();
-    private Map<Long, UserDevice> userDeviceAddRequestCacheL3 = new ConcurrentHashMap<>();
+    private Map<Long, Long> userCurrentDeviceCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, Map<String, Map<String, Object>>> deviceCmdInProgress = new ConcurrentHashMap<>();
 
     private Dao dao = new Dao("/opt/pelengator/mobile-server/conf/hibernate.cfg.xml");
     private UserDao userDao = new UserDao();
     private UserDeviceDao userDeviceDao = new UserDeviceDao();
+    private DeviceDao deviceDao = new DeviceDao();
     private DeviceStateDao deviceStateDao = new DeviceStateDao();
     private DevicePositionDao devicePositionDao = new DevicePositionDao();
     private PaymentDao paymentDao = new PaymentDao();
@@ -99,25 +99,53 @@ public class Core {
             throw new TokenExpiredException(HttpStatus.UNAUTHORIZED.value());
 
         User user = phoneUserMapCacheL3.get(phone);
-        if (user == null)
+        if (user == null) {
             user = dao.find(User.class, "phone", phone);
+            phoneUserMapCacheL3.put(phone, user);
+        }
 
         return user.getId();
+    }
+
+    public User getUserByToken(String token) throws Exception {
+        String phone = null;
+
+        for (Map.Entry item : userPhoneTokenMapCacheL3.entrySet()) {
+            if (item.getValue().equals(token))
+                phone = (String) item.getKey();
+        }
+
+        if (phone == null)
+            throw new TokenExpiredException(HttpStatus.UNAUTHORIZED.value());
+
+        User user = phoneUserMapCacheL3.get(phone);
+        if (user == null) {
+            user = dao.find(User.class, "phone", phone);
+            phoneUserMapCacheL3.put(phone, user);
+        }
+
+        return user;
     }
 
     public Device setUserCurrentDevice(long userId, long imei) throws Exception {
         Device device = dao.find(Device.class, "imei", imei);
         if (device == null)
             throw new TokenExpiredException(HttpStatus.OK.value());
-        userCurrentDeviceCacheL3.put(userId, device);
+        userCurrentDeviceCacheL3.put(userId, device.getId());
         return device;
     }
 
-    public Device getUserCurrentDevice(long userId) throws Exception {
-        return userCurrentDeviceCacheL3.get(userId);
+    public Long getUserCurrentDevice(long userId) throws Exception {
+        if (userCurrentDeviceCacheL3.get(userId) == null)
+            return 0L;
+        else
+            return userCurrentDeviceCacheL3.get(userId);
     }
 
     public Device getDevice(long deviceId) throws Exception {
+        if (deviceId == 0)
+            return null;
+
         Device device = getDeviceFromCacheL2(deviceId);
         if (device == null) {
             device = dao.find(Device.class, deviceId);
@@ -127,7 +155,7 @@ public class Core {
         return device;
     }
 
-    private synchronized Device getDeviceFromCacheL2(long deviceId) {
+    private Device getDeviceFromCacheL2(long deviceId) {
         try {
             return hazelcastClient.getDevice(deviceId);
         } catch (Throwable cause) {
@@ -136,7 +164,7 @@ public class Core {
         }
     }
 
-    private synchronized void saveDeviceToCacheL2(Device device) {
+    private void saveDeviceToCacheL2(Device device) {
         try {
             hazelcastClient.putDevice(device.getId(), device);
         } catch (Throwable cause) {
@@ -144,9 +172,18 @@ public class Core {
         }
     }
 
-    public void saveDevice(Device device) throws Exception {
-        dao.save(device);
-        saveDeviceToCacheL2(device);
+    public UserSettings getSettings(long uid) throws Exception {
+        UserSettings userSettings = dao.find(UserSettings.class, uid);
+        if (userSettings == null) {
+            userSettings = new UserSettings();
+            userSettings.setUserId(uid);
+            userSettings.setSosPhones("");
+            userSettings.setAutoStartRuntime(10);
+            userSettings.setMasterPhone("");
+            userSettings.setEmail("");
+            dao.save(userSettings);
+        }
+        return userSettings;
     }
 
     public DeviceState getDeviceState(long deviceId) throws Exception {
@@ -157,7 +194,7 @@ public class Core {
         return deviceState;
     }
 
-    private synchronized DeviceState getDeviceStateFromCacheL2(long deviceId) {
+    private DeviceState getDeviceStateFromCacheL2(long deviceId) {
         try {
             return hazelcastClient.getDeviceState(deviceId);
         } catch (Throwable cause) {
@@ -167,14 +204,15 @@ public class Core {
     }
 
     public Payment getPaymentTelematics(long deviceId) throws Exception {
-        Payment payment = getPaymentTelematicsFromCacheL2(deviceId);
-        if (payment == null)
-            payment = paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_TELEMATICS);
+        //Payment payment = getPaymentTelematicsFromCacheL2(deviceId);
+        //if (payment == null)
+            //payment = paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_TELEMATICS);
 
-        return payment;
+        //return payment;
+        return paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_TELEMATICS);
     }
 
-    private synchronized Payment getPaymentTelematicsFromCacheL2(long deviceId) {
+    private Payment getPaymentTelematicsFromCacheL2(long deviceId) {
         try {
             return hazelcastClient.getPaymentTelematics(deviceId);
         } catch (Throwable cause) {
@@ -183,7 +221,7 @@ public class Core {
         }
     }
 
-    public synchronized List<DialogMessageMobileEntity> getUnreadChatMessagesFromCacheL2(long uid) {
+    public List<DialogMessageMobileEntity> getUnreadChatMessagesFromCacheL2(long uid) {
         try {
             String data = hazelcastClient.getUnreadChatMessagesMap().get(uid);
             if (!StringUtils.isBlank(data)) {
@@ -196,7 +234,7 @@ public class Core {
         }
     }
 
-    public synchronized void removeUnreadChatMessagesFromCacheL2(long uid) {
+    public void removeUnreadChatMessagesFromCacheL2(long uid) {
         try {
             hazelcastClient.getUnreadChatMessagesMap().remove(uid);
         } catch (Throwable cause) {
@@ -240,16 +278,14 @@ public class Core {
         getDeviceCmdInProgress().put(deviceId, cmdInProgress);
     }
 
-    public Map<String, Object> getCmdBtnState(Map<String, Map<String, Object>> cmdIpProgress, Map<String, Object> item,
+    public void getCmdBtnState(Map<String, Map<String, Object>> cmdIpProgress, Map<String, Object> item,
                                               String btnCmd, Boolean btnState) {
         if (cmdIpProgress != null && !cmdIpProgress.isEmpty()) {
             Map<String, Object> cmd = cmdIpProgress.get(btnCmd);
-
             if (cmd != null && btnCmd.equals("alarm")) {
                 cmdIpProgress.remove(btnCmd);
             } else if (cmd != null) {
-                if (cmd.get("oldSate") == btnState
-                        && (System.currentTimeMillis() - (Long) cmd.get("sentAt")) < 30000) {
+                if (cmd.get("oldSate") == btnState && (System.currentTimeMillis() - (Long) cmd.get("sentAt")) < 20000) {
                     item.put("state_id", 1);
                 } else {
                     item.put("state_id", btnState ? 2 : 0);
@@ -259,19 +295,15 @@ public class Core {
                 if (btnCmd.equals("sos"))
                     item.put("state_id", 0);
                 else {
-                    item.put("state_id", btnState ? 2 : 0);
-                    item.put("enable", 0);
+                    item.put("state_id", 5);
                 }
             }
         } else {
-            item.put("enable", 1);
             if (btnCmd.equals("sos"))
                 item.put("state_id", 0);
             else
                 item.put("state_id", btnState ? 2 : 0);
         }
-
-        return item;
     }
 
     public void stop() {
@@ -333,6 +365,10 @@ public class Core {
 
     public DeviceStateDao getDeviceStateDao() {
         return deviceStateDao;
+    }
+
+    public DeviceDao getDeviceDao() {
+        return deviceDao;
     }
 
     public DevicePositionDao getDevicePositionDao() {

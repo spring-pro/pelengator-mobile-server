@@ -15,7 +15,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <spring.version>5.1.9.RELEASE</spring.version>
+        <spring.version>5.2.3.RELEASE</spring.version>
         <apache.common.lang3.version>3.0</apache.common.lang3.version>
         <hibernate.version>5.4.6.Final</hibernate.version>
         <hibernate.validator.version>6.0.17.Final</hibernate.validator.version>

@@ -143,6 +143,7 @@ public class PaymentController extends BaseController {
                         device.setIsActivated(true);
 
                     payment.setStatus(Payment.PAY_STATUS_CASHLESS);
+                    payment.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
                     break;
                 case "Cancelled":
                     payment.setStatus(Payment.PAY_STATUS_CANCELLED);

@@ -145,17 +145,72 @@ public abstract class BaseController {
         }
     }
 
+    protected void addDeviceUserHistory(String cmd, long deviceId) {
+        try {
+            DeviceUserHistory deviceUserHistory = new DeviceUserHistory();
+            deviceUserHistory.setDeviceId(deviceId);
+            deviceUserHistory.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+
+            switch (cmd) {
+                case "engine_on": {
+                    deviceUserHistory.setGroup_id(DeviceUserHistory.GROUP_4_ID);
+                    deviceUserHistory.setTitle(DeviceUserHistory.GROUP_4_TITLE);
+                    deviceUserHistory.setMessage(DeviceUserHistory.GROUP_4_EVENT_ENGINE_ON);
+                    this.getCore_().getDao().save(deviceUserHistory);
+                    break;
+                }
+                case "engine_off": {
+                    deviceUserHistory.setGroup_id(DeviceUserHistory.GROUP_4_ID);
+                    deviceUserHistory.setTitle(DeviceUserHistory.GROUP_4_TITLE);
+                    deviceUserHistory.setMessage(DeviceUserHistory.GROUP_4_EVENT_ENGINE_OFF);
+                    this.getCore_().getDao().save(deviceUserHistory);
+                    break;
+                }
+                case "service_on": {
+                    deviceUserHistory.setGroup_id(DeviceUserHistory.GROUP_3_ID);
+                    deviceUserHistory.setTitle(DeviceUserHistory.GROUP_3_TITLE);
+                    deviceUserHistory.setMessage(DeviceUserHistory.GROUP_3_EVENT_SERVICE_ON);
+                    this.getCore_().getDao().save(deviceUserHistory);
+                    break;
+                }
+                case "service_off": {
+                    deviceUserHistory.setGroup_id(DeviceUserHistory.GROUP_3_ID);
+                    deviceUserHistory.setTitle(DeviceUserHistory.GROUP_3_TITLE);
+                    deviceUserHistory.setMessage(DeviceUserHistory.GROUP_3_EVENT_SERVICE_OFF);
+                    this.getCore_().getDao().save(deviceUserHistory);
+                    break;
+                }
+                case "arm_on": {
+                    deviceUserHistory.setGroup_id(DeviceUserHistory.GROUP_1_ID);
+                    deviceUserHistory.setTitle(DeviceUserHistory.GROUP_1_1_TITLE);
+                    deviceUserHistory.setMessage(DeviceUserHistory.GROUP_1_1_EVENT_ARM_ON);
+                    this.getCore_().getDao().save(deviceUserHistory);
+                    break;
+                }
+                case "arm_off": {
+                    deviceUserHistory.setGroup_id(DeviceUserHistory.GROUP_1_ID);
+                    deviceUserHistory.setTitle(DeviceUserHistory.GROUP_1_1_TITLE);
+                    deviceUserHistory.setMessage(DeviceUserHistory.GROUP_1_1_EVENT_ARM_OFF);
+                    this.getCore_().getDao().save(deviceUserHistory);
+                    break;
+                }
+            }
+        } catch (Throwable cause) {
+            LOGGER.error("addDeviceUserHistory: ", cause);
+        }
+    }
+
     protected int getPayTelematicsFullPeriodDays(Payment paymentTelematics) {
         return paymentTelematics == null ? 0 :
                 ((int) (ApplicationUtility.getDateInSecondsWithAddMonthCount(
-                        paymentTelematics.getUpdatedAt(), paymentTelematics.getPayPeriodMonths())
-                        - ApplicationUtility.getDateInSeconds(paymentTelematics.getUpdatedAt())) / (60 * 60 * 24));
+                        paymentTelematics.getCreatedAt(), paymentTelematics.getPayPeriodMonths())
+                        - ApplicationUtility.getDateInSeconds(paymentTelematics.getCreatedAt())) / (60 * 60 * 24));
     }
 
     protected int getPayTelematicsStateDays(Payment paymentTelematics, int payFullPeriodDays) {
         return paymentTelematics == null ? 0 : (payFullPeriodDays -
                 ((int) (ApplicationUtility.getDateInSeconds() -
-                        ApplicationUtility.getDateInSeconds(paymentTelematics.getUpdatedAt())) / (60 * 60 * 24)));
+                        ApplicationUtility.getDateInSeconds(paymentTelematics.getCreatedAt())) / (60 * 60 * 24)));
     }
 
     public Core getCore_() {

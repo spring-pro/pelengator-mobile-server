@@ -47,6 +47,7 @@ public class Core {
     private Map<String, User> phoneUserMapCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, Long> userCurrentDeviceCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, Map<String, Map<String, Object>>> deviceCmdInProgress = new ConcurrentHashMap<>();
+    private Map<String, String> userDeviceConfirmMapCacheL3 = new ConcurrentHashMap<>();
 
     private Dao dao = new Dao("/opt/pelengator/mobile-server/conf/hibernate.cfg.xml");
     private UserDao userDao = new UserDao();
@@ -54,6 +55,7 @@ public class Core {
     private DeviceDao deviceDao = new DeviceDao();
     private DeviceStateDao deviceStateDao = new DeviceStateDao();
     private DevicePositionDao devicePositionDao = new DevicePositionDao();
+    private DeviceUserHistoryDao deviceUserHistoryDao = new DeviceUserHistoryDao();
     private PaymentDao paymentDao = new PaymentDao();
     private DialogDao dialogDao = new DialogDao();
     private UserTokenDao userTokenDao = new UserTokenDao();
@@ -375,6 +377,10 @@ public class Core {
         return devicePositionDao;
     }
 
+    public DeviceUserHistoryDao getDeviceUserHistoryDao() {
+        return deviceUserHistoryDao;
+    }
+
     public DialogDao getDialogDao() {
         return dialogDao;
     }
@@ -397,5 +403,9 @@ public class Core {
 
     public Map<Long, Map<String, Map<String, Object>>> getDeviceCmdInProgress() {
         return deviceCmdInProgress;
+    }
+
+    public Map<String, String> getUserDeviceConfirmMapCacheL3() {
+        return userDeviceConfirmMapCacheL3;
     }
 }

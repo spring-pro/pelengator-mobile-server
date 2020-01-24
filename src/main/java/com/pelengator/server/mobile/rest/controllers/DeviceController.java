@@ -14,7 +14,9 @@ package com.pelengator.server.mobile.rest.controllers;
 
 import com.google.gson.Gson;
 import com.pelengator.server.autofon.AutofonCommands;
-import com.pelengator.server.dao.postgresql.DevicePositionDao;
+import com.pelengator.server.dao.postgresql.dto.ConnectedUsersForMobile;
+import com.pelengator.server.dao.postgresql.dto.DeviceUserHistoryRow;
+import com.pelengator.server.dao.postgresql.dto.DevisePositionTracking;
 import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.*;
@@ -45,10 +47,7 @@ import org.springframework.web.bind.annotation.*;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/device")
@@ -156,6 +155,22 @@ public class DeviceController extends BaseController {
             if (device.getKitMaintenanceDate() == null)
                 device.setKitMaintenanceDate(new Date(ApplicationUtility.getDateInSecondsWithAddYearsCount(1) * 1000));
 
+            List<UserDevice> userDeviceList = this.getCore_().getUserDeviceDao().getUserDeviceList(device.getId(), 1, true);
+
+            if (userDeviceList != null && userDeviceList.size() > 0) {
+                User user = this.getCore_().getDao().find(User.class, uid);
+                List<ConnectedUsersForMobile> connectedUsers = this.getCore_().getUserDeviceDao().getConnectedUsers(device.getId(), true);
+                int confirmCode = ApplicationUtility.generateRandomInt6Digits(100000, 999999);
+                this.getCore_().getUserDeviceConfirmMapCacheL3().put(uid + "_" + device.getId(), String.valueOf(confirmCode));
+                if (!SmsSender.send(connectedUsers.get(0).getPhone(),
+                        "Пользователь " + user.getPhone() + " пытается добавить автомобиль гос. номер " + request.getCarNumber() + ". " +
+                                "Код подтверждения: " + confirmCode))
+                    throw new UnknownException(HttpStatus.OK.value());
+                data.setConfirmType("sms");
+            } else {
+                data.setConfirmType("pass");
+            }
+
             UserDevice userDevice = this.getCore_().getUserDeviceDao().getUserDevice(uid, device.getId(), false);
             if (userDevice == null) {
                 userDevice = new UserDevice();
@@ -175,8 +190,7 @@ public class DeviceController extends BaseController {
                         "Устройство с заданным IMEI уже привязано к текущему пользователю!");
             }
 
-            data.setConfirmType("pass");
-            data.setDeviceId(userDevice.getDeviceId());
+            data.setDeviceId(device.getId());
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
@@ -205,6 +219,9 @@ public class DeviceController extends BaseController {
             if (request == null)
                 throw new UnknownException(HttpStatus.OK.value());
 
+            if (StringUtils.isBlank(request.getConfirm()))
+                throw new IncorrectDevicePasswordException(HttpStatus.OK.value());
+
             List<UserDevice> userDeviceList = this.getCore_().getUserDeviceDao().getUserDeviceList(request.getDeviceId(), 1, true);
             UserDevice userDevice = this.getCore_().getUserDeviceDao().getUserDevice(uid, request.getDeviceId(), false);
 
@@ -212,7 +229,12 @@ public class DeviceController extends BaseController {
                 Device device = this.getCore_().getDao().find(Device.class, userDevice.getDeviceId());
 
                 if (device != null) {
-                    if (device.getPassword().equals(request.getConfirm())) {
+                    String confirmPassword = device.getPassword();
+                    if (userDeviceList != null && userDeviceList.size() > 0) {
+                        confirmPassword = this.getCore_().getUserDeviceConfirmMapCacheL3().remove(uid + "_" + device.getId());
+                    }
+
+                    if (confirmPassword != null && confirmPassword.equals(request.getConfirm())) {
                         userDevice.setConfirmed(true);
 
                         if (userDeviceList == null || userDeviceList.size() == 0) {
@@ -579,12 +601,26 @@ public class DeviceController extends BaseController {
                     "            },\n" +
                     "            {\n" +
                     "                \"enable\": 1,\n" +
-                    "                \"id\": 13,\n" +
-                    "                \"need_pin\": false,\n" +
-                    "                \"long_press\": false,\n" +
-                    "                \"name\": \"Микрофон\",\n" +
-                    "                \"button_action\": \"show_microphone\",\n" +
-                    "                \"image\": \"13_1\"\n" +
+                    "                \"id\": 5,\n" +
+                    "                \"need_pin\": true,\n" +
+                    "                \"long_press\": true,\n" +
+                    "                \"button_settings\": [\n" +
+                    "                    {\n" +
+                    "                        \"status\": 0,\n" +
+                    "                        \"cmd\": \"/device/cmd/block_on\",\n" +
+                    "                        \"name\": \"Включить блокировку\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 1,\n" +
+                    "                        \"cmd\": \"\",\n" +
+                    "                        \"name\": \"Ожидание ответа от сервера\"\n" +
+                    "                    },\n" +
+                    "                    {\n" +
+                    "                        \"status\": 2,\n" +
+                    "                        \"cmd\": \"/device/cmd/block_off\",\n" +
+                    "                        \"name\": \"Выключить блокировку\"\n" +
+                    "                    }\n" +
+                    "                ]\n" +
                     "            },\n" +
                     "            {\n" +
                     "                \"enable\": 1,\n" +
@@ -641,7 +677,7 @@ public class DeviceController extends BaseController {
                     "            \"v\": 1\n" +
                     "        },\n" +
                     "        {\n" +
-                    "            \"id\": 13,\n" +
+                    "            \"id\": 5,\n" +
                     "            \"v\": 1\n" +
                     "        },\n" +
                     "        {\n" +
@@ -778,7 +814,7 @@ public class DeviceController extends BaseController {
                     "        \"enable\": 1\n" +
                     "      },\n" +
                     "      {\n" +
-                    "        \"id\": 13,\n" +
+                    "        \"id\": 5,\n" +
                     "        \"enable\": 1\n" +
                     "      },\n" +
                     "      {\n" +
@@ -855,8 +891,11 @@ public class DeviceController extends BaseController {
                             this.getCore_().getCmdBtnState(cmdIpProgress, item, "block",
                                     deviceState.isAhyStatus());
                         } else if (8 == Math.round((Double) item.get("id"))) {
-                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "lock",
-                                    deviceState.isCentralLockStatus());
+                            if (deviceState.isFortinStatus())
+                                this.getCore_().getCmdBtnState(cmdIpProgress, item, "lock",
+                                        deviceState.isCentralLockStatus());
+                            else
+                                item.put("enable", 0);
                         } else if (4 == Math.round((Double) item.get("id"))) {
                             this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
                                     deviceState.isValetStatus());
@@ -884,12 +923,26 @@ public class DeviceController extends BaseController {
                             item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
                         } else if (205 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 205);
-                            item.put("text", deviceState.getGsmQuality() + " шт.");
                             item.put("percent", deviceState.getGsmQuality() * 100 / 7);
+                            if (deviceState.getGsmQuality() <= 0)
+                                item.put("text", "нет связи");
+                            else if (deviceState.getGsmQuality() <= 3)
+                                item.put("text", "плохо");
+                            else if (deviceState.getGsmQuality() > 3 && deviceState.getGpsQuality() < 6)
+                                item.put("text", "хорошо");
+                            else
+                                item.put("text", "отлично");
                         } else if (206 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 206);
-                            item.put("text", deviceState.getGpsQuality() + " шт.");
-                            item.put("percent", deviceState.getGpsQuality() * 100 / 17);
+                            item.put("percent", deviceState.getGpsQuality() * 100 / 18);
+                            if (deviceState.getGpsQuality() <= 0)
+                                item.put("text", "нет связи");
+                            else if (deviceState.getGpsQuality() < 9)
+                                item.put("text", "плохо");
+                            else if (deviceState.getGpsQuality() > 9 && deviceState.getGpsQuality() < 17)
+                                item.put("text", "хорошо");
+                            else
+                                item.put("text", "отлично");
                         } else if (202 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 202);
                             item.put("text", String.format("%.2f", (deviceState.getBatteryPower())) + " v");
@@ -1089,6 +1142,8 @@ public class DeviceController extends BaseController {
                     Map<String, String> data = new HashMap<>(1);
                     data.put("answer", "Команда отправлена!");
 
+                    addDeviceUserHistory(cmd, device.getId());
+
                     return ResponseEntity.status(HttpStatus.OK).body(
                             new BaseResponse(HttpStatus.OK.value(), "", data));
                 } else {
@@ -1185,7 +1240,7 @@ public class DeviceController extends BaseController {
                 dateTo = new Timestamp(calendar.getTimeInMillis());
             }
 
-            List<DevicePositionDao.DevisePositionTracking> data =
+            List<DevisePositionTracking> data =
                     this.getCore_().getDevicePositionDao().getDevisePositionTrackingList(
                             device.getId(),
                             dateFrom,
@@ -1349,14 +1404,48 @@ public class DeviceController extends BaseController {
                 dateTo = new Timestamp(calendar.getTimeInMillis());
             }
 
-            List<DevicePositionDao.DevisePositionTracking> data =
-                    this.getCore_().getDevicePositionDao().getDevisePositionTrackingList(
+            List<DeviceUserHistoryRow> deviseUserHistoryList =
+                    this.getCore_().getDeviceUserHistoryDao().getDeviseUserHistoryList(
                             device.getId(),
                             dateFrom,
                             dateTo
                     );
 
+            Map<String, Object> data = new HashMap<>(1);
+            List<Map<String, Object>> dataList = new ArrayList<>();
+            List<DeviceUserHistoryRow> actionsList = new ArrayList<>();
+            long lastDateTimeInMinutes = 0;
+            boolean isLastItem = false;
+            for (int i = 0; i < deviseUserHistoryList.size(); i++) {
+                if (i == (deviseUserHistoryList.size() - 1)) {
+                    isLastItem = true;
+                    actionsList.add(deviseUserHistoryList.get(i));
+                }
 
+                Calendar tsMinutes = Calendar.getInstance();
+                tsMinutes.setTimeInMillis(deviseUserHistoryList.get(i).getCreatedAt() * 1000);
+                tsMinutes.set(Calendar.SECOND, 0);
+                tsMinutes.set(Calendar.MILLISECOND, 0);
+
+                if (lastDateTimeInMinutes == 0)
+                    lastDateTimeInMinutes = tsMinutes.getTimeInMillis() / 1000;
+
+                if (i == (deviseUserHistoryList.size() - 1) || tsMinutes.getTimeInMillis() / 1000 > lastDateTimeInMinutes) {
+                    Map<String, Object> dataRow = new HashMap<>(2);
+                    dataRow.put("ts", lastDateTimeInMinutes + 1);
+                    dataRow.put("actions", actionsList);
+                    dataList.add(dataRow);
+                    actionsList = new ArrayList<>();
+
+                    if (!isLastItem) {
+                        actionsList.add(deviseUserHistoryList.get(i));
+                        lastDateTimeInMinutes = tsMinutes.getTimeInMillis() / 1000;
+                    }
+                } else
+                    actionsList.add(deviseUserHistoryList.get(i));
+            }
+
+            data.put("history", dataList);
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
             LOGGER.error("REQUEST error -> /device/get/history: ", cause);

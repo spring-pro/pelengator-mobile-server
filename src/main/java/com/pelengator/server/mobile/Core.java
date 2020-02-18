@@ -191,7 +191,7 @@ public class Core {
     public DeviceState getDeviceState(long deviceId) throws Exception {
         DeviceState deviceState = getDeviceStateFromCacheL2(deviceId);
         if (deviceState == null)
-            deviceState = dao.find(DeviceState.class, deviceId);
+            deviceState = dao.find(DeviceState.class, "deviceId", deviceId);
 
         return deviceState;
     }

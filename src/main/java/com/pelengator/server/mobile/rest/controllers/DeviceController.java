@@ -348,8 +348,7 @@ public class DeviceController extends BaseController {
 
             Device device = this.getCore_().setUserCurrentDevice(uid, Long.parseLong(request.getImei()));
 
-            DeviceState deviceState =
-                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid));
+            DeviceState deviceState = this.getCore_().getDeviceState(device.getId());
 
             if (deviceState != null &&
                     deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
@@ -1180,8 +1179,8 @@ public class DeviceController extends BaseController {
                 throw new UnknownException(HttpStatus.OK.value());
 
             DevicePositionResponse data = new DevicePositionResponse();
-            DeviceState deviceState =
-                    this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid));
+            Device device = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
+            DeviceState deviceState = this.getCore_().getDeviceState(device.getId());
 
             if (deviceState != null) {
                 data.setPositionUpdatedAt(ApplicationUtility.getDateTimeInSeconds(deviceState.getPositionLastUpdatedAt()));

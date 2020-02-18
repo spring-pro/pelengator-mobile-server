@@ -196,7 +196,10 @@ public class PaymentController extends BaseController {
             String htmlSelectOptions = "";
             switch (payment.getPayType()) {
                 case Payment.PAY_TYPE_TELEMATICS: {
-                    htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";
+                    if (device.getKitName().equals(ApplicationConstants.KIT_NAME_PELENGATOR_T))
+                        htmlSelectOptions += "                           <option value=\"12|1800\" selected>1 год - 1.800Р</option>\n";
+                    else
+                        htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";
                     break;
                 }
                 case Payment.PAY_TYPE_ACTIVATION: {

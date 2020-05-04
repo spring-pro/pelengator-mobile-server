@@ -90,7 +90,7 @@ public class DeviceController extends BaseController {
                     device.getId(), Payment.PAY_TYPE_TELEMATICS);
 
             Map<String, Object> activation = new HashMap<>();
-            activation.put("text", device.getIsActivated() ? "" : "20000 р.");
+            activation.put("text", device.getIsActivated() ? "" : "30000 р.");
             activation.put("color", device.getIsActivated() ? PAYMENT_ITEM_STATE_INACTIVE : PAYMENT_ITEM_STATE_NEED_PAY);
 
             Map<String, Object> telematics = new HashMap<>();
@@ -115,7 +115,7 @@ public class DeviceController extends BaseController {
 
 
             Map<String, Map<String, Object>> data = new HashMap<>();
-            /*data.put("activation", activation);*/
+            data.put("activation", activation);
             data.put("telematics", telematics);
             /*data.put("installment", installment);*/
 
@@ -868,6 +868,12 @@ public class DeviceController extends BaseController {
                         if ((17 != Math.round((Double) item.get("id"))) && (4 != Math.round((Double) item.get("id")))) {
                             item.put("enable", 0);
                         }
+
+                        if (4 == Math.round((Double) item.get("id"))) {
+                            item.put("enable", 1);
+                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
+                                    deviceState.isValetStatus());
+                        }
                     } else if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
                         if (6 != Math.round((Double) item.get("id")) &&
                                 18 != Math.round((Double) item.get("id")) &&
@@ -979,6 +985,10 @@ public class DeviceController extends BaseController {
                             item.put("icon_id", 208);
                             item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
                             item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
+                        } else if (209 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 209);
+                            item.put("text", (Math.max(payStateDays, 0)) + " дн.");
+                            item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
                         }
                     });
                 }
@@ -1414,11 +1424,11 @@ public class DeviceController extends BaseController {
             List<Map<String, Object>> dataList = new ArrayList<>();
             List<DeviceUserHistoryRow> actionsList = new ArrayList<>();
             long lastDateTimeInMinutes = 0;
+            long lastDateTimeInMinutesForCompare = 0;
             boolean isLastItem = false;
             for (int i = 0; i < deviseUserHistoryList.size(); i++) {
                 if (i == (deviseUserHistoryList.size() - 1)) {
                     isLastItem = true;
-                    actionsList.add(deviseUserHistoryList.get(i));
                 }
 
                 Calendar tsMinutes = Calendar.getInstance();
@@ -1426,22 +1436,35 @@ public class DeviceController extends BaseController {
                 tsMinutes.set(Calendar.SECOND, 0);
                 tsMinutes.set(Calendar.MILLISECOND, 0);
 
-                if (lastDateTimeInMinutes == 0)
-                    lastDateTimeInMinutes = tsMinutes.getTimeInMillis() / 1000;
-
-                if (i == (deviseUserHistoryList.size() - 1) || tsMinutes.getTimeInMillis() / 1000 > lastDateTimeInMinutes) {
+                if (!isLastItem && lastDateTimeInMinutesForCompare > 0 && tsMinutes.getTimeInMillis() / 1000 > lastDateTimeInMinutesForCompare) {
                     Map<String, Object> dataRow = new HashMap<>(2);
-                    dataRow.put("ts", lastDateTimeInMinutes + 1);
+                    dataRow.put("ts", lastDateTimeInMinutes);
                     dataRow.put("actions", actionsList);
                     dataList.add(dataRow);
-                    actionsList = new ArrayList<>();
 
-                    if (!isLastItem) {
-                        actionsList.add(deviseUserHistoryList.get(i));
-                        lastDateTimeInMinutes = tsMinutes.getTimeInMillis() / 1000;
+                    actionsList = new ArrayList<>();
+                    actionsList.add(deviseUserHistoryList.get(i));
+                } else if (isLastItem) {
+                    if (tsMinutes.getTimeInMillis() / 1000 > lastDateTimeInMinutesForCompare) {
+                        Map<String, Object> dataRow = new HashMap<>(2);
+                        dataRow.put("ts", lastDateTimeInMinutes);
+                        dataRow.put("actions", actionsList);
+                        dataList.add(dataRow);
+                        actionsList = new ArrayList<>();
                     }
+
+                    actionsList.add(deviseUserHistoryList.get(i));
+
+                    Map<String, Object> dataRow = new HashMap<>(2);
+                    dataRow.put("ts", tsMinutes.getTimeInMillis() / 1000);
+                    dataRow.put("actions", actionsList);
+                    dataList.add(dataRow);
                 } else
                     actionsList.add(deviseUserHistoryList.get(i));
+
+                lastDateTimeInMinutes = tsMinutes.getTimeInMillis() / 1000;
+                lastDateTimeInMinutesForCompare = ApplicationUtility.getDateInSecondsWithAddMinutesCount(
+                        new Date(tsMinutes.getTimeInMillis()), 1);
             }
 
             data.put("history", dataList);

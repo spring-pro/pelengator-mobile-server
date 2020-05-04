@@ -12,21 +12,22 @@
 
 package com.pelengator.server.mobile.rest.controllers;
 
-import com.pelengator.server.dao.postgresql.entity.Device;
-import com.pelengator.server.dao.postgresql.entity.DeviceState;
-import com.pelengator.server.dao.postgresql.entity.Payment;
-import com.pelengator.server.dao.postgresql.entity.User;
+import com.pelengator.server.autofon.AutofonCommands;
+import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.BaseException;
 import com.pelengator.server.exception.mobile.PaymentNotFoundException;
 import com.pelengator.server.exception.mobile.UnknownException;
 import com.pelengator.server.mobile.Core;
+import com.pelengator.server.mobile.kafka.TransportCommandObject;
 import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 import com.pelengator.server.mobile.rest.entity.request.payment.PaymentGetUrlRequest;
+import com.pelengator.server.mobile.rest.entity.response.BaseCmdResponse;
 import com.pelengator.server.mobile.rest.entity.response.payment.PaymentStatusDataResponse;
 import com.pelengator.server.utils.ApplicationConstants;
 import com.pelengator.server.utils.ApplicationUtility;
+import com.pelengator.server.utils.DeviceLogger;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.hibernate.Session;
@@ -34,6 +35,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.Map;
@@ -131,7 +133,16 @@ public class PaymentController extends BaseController {
                 statusDataResponse = gson.fromJson(paymentData, PaymentStatusDataResponse.class);
             }
 
+            int payFullPeriodDays = 0;
+            int payStateDays = 0;
+            Payment paymentPayed = this.getCore_().getPaymentTelematics(payment.getDeviceId());
+            if (paymentPayed != null) {
+                payFullPeriodDays = getPayTelematicsFullPeriodDays(paymentPayed);
+                payStateDays = getPayTelematicsStateDays(paymentPayed, payFullPeriodDays);
+            }
+
             payment.setAmount(amount);
+            payment.setComment(description);
 
             switch (status) {
                 case "Authorized":
@@ -139,11 +150,37 @@ public class PaymentController extends BaseController {
                     break;
                 case "Completed":
                     device = this.getCore_().getDao().find(Device.class, payment.getDeviceId());
-                    if (device != null)
-                        device.setIsActivated(true);
+                    if (device != null) {
+                        DeviceLog deviceLog = new DeviceLog();
+                        deviceLog.setDeviceId(device.getId());
+                        deviceLog.setAdminId(null);
+                        deviceLog.setUserId(null);
+                        deviceLog.setSenderType(DeviceLog.CommandSenderTypeEnum.SERVER.name());
+                        deviceLog.setLogType(DeviceLogger.LOG_TYPE_OUTPUT_EVENT);
+                        deviceLog.setEventType(0);
+                        deviceLog.setMessage("activationKit");
+                        deviceLog.setSent(false);
+                        deviceLog.setDescription("");
+                        deviceLog.setErrMsg("");
+                        deviceLog.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                        deviceLog.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                        this.getCore_().getDao().save(deviceLog);
+
+                        BaseCmdResponse response = sendAutofonCmdPost(new TransportCommandObject(device.getImei(), deviceLog.getId(),
+                                AutofonCommands.AUTOFON_CMD_ACTIVATION_KIT.toString(StandardCharsets.ISO_8859_1)));
+
+                        if (response.getCode() == HttpStatus.OK.value())
+                            device.setIsActivated(true);
+                    }
 
                     payment.setStatus(Payment.PAY_STATUS_CASHLESS);
-                    payment.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+
+                    if (payStateDays > 0) {
+                        payment.setComment("Дата создания платежа смещена с учетом неиспользованных дней (" + payStateDays + " дн.)");
+                        payment.setCreatedAt(new Timestamp(ApplicationUtility.getDateInSecondsWithAddDaysCount(payStateDays) * 1000));
+                    } else {
+                        payment.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                    }
                     break;
                 case "Cancelled":
                     payment.setStatus(Payment.PAY_STATUS_CANCELLED);
@@ -155,7 +192,6 @@ public class PaymentController extends BaseController {
 
             if (statusDataResponse != null)
                 payment.setPayPeriodMonths(statusDataResponse.getPeriod());
-            payment.setComment(description);
             payment.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
 
             if (device == null) {

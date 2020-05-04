@@ -13,7 +13,9 @@
 package com.pelengator.server.mobile.rest.controllers;
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.pelengator.server.autofon.AutofonCommands;
+import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.kafka.TransportCommandObject;
@@ -28,7 +30,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 public abstract class BaseController {
 
@@ -54,7 +58,8 @@ public abstract class BaseController {
 
     protected int getSmsCode(User user) {
         int smsCode = 1234;
-        if (!user.getPhone().equals("79857777766") && !user.getPhone().equals("79653684111"))
+        if (!user.getPhone().equals("71111111117") &&
+                !user.getPhone().equals("79857777766") && !user.getPhone().equals("79653684111"))
             smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
         LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
         return smsCode;
@@ -211,6 +216,26 @@ public abstract class BaseController {
         return paymentTelematics == null ? 0 : (payFullPeriodDays -
                 ((int) (ApplicationUtility.getDateInSeconds() -
                         ApplicationUtility.getDateInSeconds(paymentTelematics.getCreatedAt())) / (60 * 60 * 24)));
+    }
+
+    protected void saveUnreadChatMessageToHazelcast(long userId, DialogMessageMobileEntity dialogMessage) {
+        try {
+            String dialogMessageListL2 =
+                    this.getCore_().getHazelcastClient().getUnreadChatMessagesMap().get(userId);
+
+            List<DialogMessageMobileEntity> dialogMessageList = new ArrayList<>();
+            if (dialogMessageListL2 != null) {
+                dialogMessageList =
+                        gson.fromJson(dialogMessageListL2, new TypeToken<List<DialogMessageMobileEntity>>() {
+                        }.getType());
+            }
+
+            dialogMessageList.add(dialogMessage);
+            this.getCore_().getHazelcastClient().getUnreadChatMessagesMap().put(userId, gson.toJson(dialogMessageList));
+        } catch (Throwable cause) {
+            //LOGGER.error("Save Device to Hazelcast ERROR occurred -> " + cause.getMessage());
+            System.out.println("Save DialogMessage to Hazelcast ERROR occurred -> " + cause.getMessage());
+        }
     }
 
     public Core getCore_() {

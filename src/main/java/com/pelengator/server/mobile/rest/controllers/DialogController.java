@@ -15,6 +15,7 @@ package com.pelengator.server.mobile.rest.controllers;
 import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.Dialog;
 import com.pelengator.server.dao.postgresql.entity.DialogMessage;
+import com.pelengator.server.dao.postgresql.entity.UserPushToken;
 import com.pelengator.server.exception.mobile.UnknownException;
 import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.rest.BaseResponse;
@@ -23,6 +24,7 @@ import com.pelengator.server.mobile.rest.entity.BaseEntity;
 import com.pelengator.server.mobile.rest.entity.request.chat.DialogSendMessageRequest;
 import com.pelengator.server.mobile.rest.entity.request.chat.DialogSetReadRequest;
 import com.pelengator.server.utils.ApplicationUtility;
+import com.pelengator.server.utils.push.PNChatMessageThread;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.hibernate.Session;
@@ -160,12 +162,84 @@ public class DialogController extends BaseController {
             Map<String, Long> data = new HashMap<>(1);
             data.put("id", request.getId());
 
+            // Check if message has been sent between 21h of current day and 09-h of the nex day
+            // - send SUPPORT message to the user
+            sendDialogRobotMessageAfter21(dialog, uid);
+
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
             LOGGER.error("REQUEST error -> /chat/send: ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
+    private void sendDialogRobotMessageAfter21(Dialog dialog, Long userId) {
+
+        try {
+            TimeZone timeZone = TimeZone.getTimeZone(ApplicationUtility.GMT_3);
+            Calendar currDate21H = Calendar.getInstance(timeZone);
+            currDate21H.set(Calendar.HOUR_OF_DAY, 21);
+            currDate21H.set(Calendar.MINUTE, 0);
+            currDate21H.set(Calendar.SECOND, 0);
+            currDate21H.set(Calendar.MILLISECOND, 0);
+
+            Calendar nextDate09H = Calendar.getInstance(timeZone);
+            nextDate09H.add(Calendar.DATE, 1);
+            nextDate09H.set(Calendar.HOUR_OF_DAY, 9);
+            nextDate09H.set(Calendar.MINUTE, 0);
+            nextDate09H.set(Calendar.SECOND, 0);
+            nextDate09H.set(Calendar.MILLISECOND, 0);
+
+            if (ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) > currDate21H.getTimeInMillis() &&
+                    ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) < nextDate09H.getTimeInMillis()) {
+
+                List<DialogMessage> dialogMessageList = this.getCore_().getDialogDao().getAllBySenderIdAndCreatedAtBetween(
+                        2L,  // User "Pelengator"
+                        new Timestamp(currDate21H.getTimeInMillis()),
+                        new Timestamp(nextDate09H.getTimeInMillis()));
+
+                if (dialogMessageList == null) {
+                    String messageText = "Спасибо за обращение! Ваше сообщение принято в обработку. Оператор ответит Вам с 9:00 до 21:00 часов. Для экстренной связи воспользуйтесь, пожалуйста, номером технической поддержки 8 800 234-84-43";
+
+                    DialogMessage dialogMessage;
+                    dialogMessage = new DialogMessage();
+                    dialogMessage.setDialogId(dialog.getId());
+                    dialogMessage.setSenderType(DialogMessage.SENDER_TYPE_SUPPORT);
+                    dialogMessage.setSenderId(2L); // User "Pelengator"
+                    dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_DEFAULT);
+                    dialogMessage.setMessage(messageText.trim());
+                    dialogMessage.setIsRead(false);
+                    dialogMessage.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+
+                    dialog.setUpdatedAt(new Timestamp(new Date().getTime()));
+
+                    Session session = this.getCore_().getDao().beginTransaction();
+                    this.getCore_().getDao().save(dialogMessage, session);
+                    this.getCore_().getDao().save(dialog, session);
+                    this.getCore_().getDao().commitTransaction(session);
+
+                    DialogMessageMobileEntity dialogMessageMobileEntity = new DialogMessageMobileEntity();
+                    dialogMessageMobileEntity.setMessageId(dialogMessage.getId());
+                    dialogMessageMobileEntity.setMessageText(dialogMessage.getMessage());
+                    dialogMessageMobileEntity.setMessageType(dialogMessage.getMessageType());
+                    dialogMessageMobileEntity.setSenderType(dialogMessage.getSenderType());
+                    dialogMessageMobileEntity.setIsRead(dialogMessage.isIsRead() ? 1 : 0);
+                    dialogMessageMobileEntity.setMessageTime(dialogMessage.getCreatedAt().getTime() / 1000);
+                    saveUnreadChatMessageToHazelcast(userId, dialogMessageMobileEntity);
+
+                    UserPushToken userPushToken = this.getCore_().getDao().find(UserPushToken.class, "userId", userId);
+                    if (userPushToken != null) {
+                        PNChatMessageThread pnChatMessageThread = new PNChatMessageThread(
+                                userPushToken.getToken(), userPushToken.getDevice(), dialogMessage.getMessage());
+
+                        pnChatMessageThread.start();
+                    }
+                }
+            }
+        } catch (Throwable cause) {
+            LOGGER.error("sendDialogRobotMessageAfter21 Error -> ", cause);
         }
     }
 }

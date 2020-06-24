@@ -195,12 +195,13 @@ public class DialogController extends BaseController {
             if (ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) > currDate21H.getTimeInMillis() &&
                     ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) < nextDate09H.getTimeInMillis()) {
 
-                List<DialogMessage> dialogMessageList = this.getCore_().getDialogDao().getAllBySenderIdAndCreatedAtBetween(
+                Number dialogMessageCount = this.getCore_().getDialogDao().getDialogMessagesCountBySenderIdAndCreatedAtBetween(
+                        dialog.getId(),
                         2L,  // User "Pelengator"
                         new Timestamp(currDate21H.getTimeInMillis()),
                         new Timestamp(nextDate09H.getTimeInMillis()));
 
-                if (dialogMessageList == null) {
+                if (dialogMessageCount == null || dialogMessageCount.intValue() == 0 ) {
                     String messageText = "Спасибо за обращение! Ваше сообщение принято в обработку. Оператор ответит Вам с 9:00 до 21:00 часов. Для экстренной связи воспользуйтесь, пожалуйста, номером технической поддержки 8 800 234-84-43";
 
                     DialogMessage dialogMessage;
@@ -208,7 +209,7 @@ public class DialogController extends BaseController {
                     dialogMessage.setDialogId(dialog.getId());
                     dialogMessage.setSenderType(DialogMessage.SENDER_TYPE_SUPPORT);
                     dialogMessage.setSenderId(2L); // User "Pelengator"
-                    dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_DEFAULT);
+                    dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_SYSTEM);
                     dialogMessage.setMessage(messageText.trim());
                     dialogMessage.setIsRead(false);
                     dialogMessage.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
@@ -229,7 +230,7 @@ public class DialogController extends BaseController {
                     dialogMessageMobileEntity.setMessageTime(dialogMessage.getCreatedAt().getTime() / 1000);
                     saveUnreadChatMessageToHazelcast(userId, dialogMessageMobileEntity);
 
-                    UserPushToken userPushToken = this.getCore_().getDao().find(UserPushToken.class, "userId", userId);
+                    UserPushToken userPushToken = this.getCore_().getDao().find(UserPushToken.class, "userId", dialog.getUserId());
                     if (userPushToken != null) {
                         PNChatMessageThread pnChatMessageThread = new PNChatMessageThread(
                                 userPushToken.getToken(), userPushToken.getDevice(), dialogMessage.getMessage());

@@ -41,8 +41,6 @@ public class TokenFilter implements Filter {
         HttpServletResponse response = (HttpServletResponse) servletResponse;
         String apiMethodName = request.getPathInfo();
         try {
-            LOGGER.debug("Request -> " + request.getPathInfo());
-
             request.setCharacterEncoding("UTF-8");
             response.setCharacterEncoding("UTF-8");
 
@@ -55,6 +53,9 @@ public class TokenFilter implements Filter {
                     && !apiMethodName.equals("/payment/status")) {
 
                 String token = core_.getCookieByName(request, "PHPSESSID");
+                if (StringUtils.isBlank(token))
+                    token = StringUtils.substringAfter(
+                            StringUtils.trimToEmpty(request.getHeader("Authorization")), "Bearer ");
 
                 if (!StringUtils.isBlank(token)) {
                     request.getRequestDispatcher(request.getPathInfo()

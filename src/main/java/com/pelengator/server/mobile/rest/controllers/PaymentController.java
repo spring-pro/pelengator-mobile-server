@@ -13,6 +13,7 @@
 package com.pelengator.server.mobile.rest.controllers;
 
 import com.pelengator.server.autofon.AutofonCommands;
+import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.BaseException;
 import com.pelengator.server.exception.mobile.PaymentNotFoundException;
@@ -37,6 +38,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -181,6 +183,42 @@ public class PaymentController extends BaseController {
                     } else {
                         payment.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
                     }
+
+                    Dialog dialog = this.getCore_().getDao().find(Dialog.class, "userId", payment.getUserId());
+                    if (dialog == null) {
+                        dialog = createDialog(payment.getUserId(), false);
+                    } else {
+                        dialog.setReadBySupport(false);
+                    }
+                    dialog.setUpdatedAt(new Timestamp(new Date().getTime()));
+
+                    String messageText = "Оплата произведена успешно. " +
+                            " Серийный № " + device.getSerialNumber();
+
+                    DialogMessage dialogMessage;
+                    dialogMessage = new DialogMessage();
+                    dialogMessage.setDialogId(dialog.getId());
+                    dialogMessage.setSenderType(DialogMessage.SENDER_TYPE_SUPPORT);
+                    dialogMessage.setSenderId(2L); // User "Pelengator"
+                    dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_DEFAULT);
+                    dialogMessage.setMessage(messageText.trim());
+                    dialogMessage.setIsRead(false);
+                    dialogMessage.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+
+                    Session session = this.getCore_().getDao().beginTransaction();
+                    this.getCore_().getDao().save(dialog, session);
+                    this.getCore_().getDao().save(dialogMessage, session);
+                    this.getCore_().getDao().commitTransaction(session);
+
+                    DialogMessageMobileEntity dialogMessageMobileEntity = new DialogMessageMobileEntity();
+                    dialogMessageMobileEntity.setMessageId(dialogMessage.getId());
+                    dialogMessageMobileEntity.setMessageText(dialogMessage.getMessage());
+                    dialogMessageMobileEntity.setMessageType(dialogMessage.getMessageType());
+                    dialogMessageMobileEntity.setSenderType(dialogMessage.getSenderType());
+                    dialogMessageMobileEntity.setIsRead(dialogMessage.isIsRead() ? 1 : 0);
+                    dialogMessageMobileEntity.setMessageTime(dialogMessage.getCreatedAt().getTime() / 1000);
+                    saveUnreadChatMessageToHazelcast(payment.getUserId(), dialogMessageMobileEntity);
+
                     break;
                 case "Cancelled":
                     payment.setStatus(Payment.PAY_STATUS_CANCELLED);

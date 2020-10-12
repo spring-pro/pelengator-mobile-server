@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Spring-Pro
+ * Copyright (c) 2020 Spring-Pro
  * Moscow, Russia
  * All rights reserved.
  *
@@ -10,19 +10,19 @@
  * Author: Maxim Zemskov, https://www.linkedin.com/in/mzemskov/
  */
 
-package com.pelengator.server.mobile.rest.controllers;
+package com.pelengator.server.mobile.rest.controllers.v1;
 
 import com.pelengator.server.autofon.AutofonCommands;
 import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.BaseException;
 import com.pelengator.server.exception.mobile.PaymentNotFoundException;
-import com.pelengator.server.exception.mobile.UnknownException;
+import com.pelengator.server.exception.mobile.RequestBodyIsEmptyException;
 import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.kafka.TransportCommandObject;
 import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
-import com.pelengator.server.mobile.rest.entity.BaseEntity;
+import com.pelengator.server.mobile.rest.controllers.BaseController;
 import com.pelengator.server.mobile.rest.entity.request.payment.PaymentGetUrlRequest;
 import com.pelengator.server.mobile.rest.entity.response.BaseCmdResponse;
 import com.pelengator.server.mobile.rest.entity.response.payment.PaymentStatusDataResponse;
@@ -36,6 +36,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.Date;
@@ -43,25 +44,22 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/payment")
-public class PaymentController extends BaseController {
+@RequestMapping("/v1/payment")
+public class V1PaymentController extends BaseController {
 
-    private static final Logger LOGGER = Core.getLogger(PaymentController.class.getSimpleName());
+    private static final Logger LOGGER = Core.getLogger(V1PaymentController.class.getSimpleName());
 
     @RequestMapping(value = "/get/url/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getPaymentUrl(@PathVariable("token") String token,
+    public ResponseEntity getPaymentUrl(HttpServletRequest servletRequest,
+                                        @PathVariable("token") String token,
                                         @PathVariable("uid") long uid,
-                                        @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                        @RequestBody PaymentGetUrlRequest request) {
 
         try {
-            PaymentGetUrlRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            PaymentGetUrlRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             int payType = 0;
             switch (request.getType()) {
@@ -102,7 +100,7 @@ public class PaymentController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /payment/get/url: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -111,7 +109,8 @@ public class PaymentController extends BaseController {
     @RequestMapping(value = "/status",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity paymentStatus(@RequestParam(name = "InvoiceId", defaultValue = "0") String invoiceId,
+    public ResponseEntity paymentStatus(HttpServletRequest servletRequest,
+                                        @RequestParam(name = "InvoiceId", defaultValue = "0") String invoiceId,
                                         @RequestParam(name = "AccountId", defaultValue = "") String accountId,
                                         @RequestParam(name = "Description", defaultValue = "") String description,
                                         @RequestParam(name = "Data") String paymentData,
@@ -246,7 +245,7 @@ public class PaymentController extends BaseController {
             data.put("code", 0);
             return ResponseEntity.status(HttpStatus.OK).body(data);
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /payment/status: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             data.put("code", 13);
             return ResponseEntity.status(HttpStatus.OK).body(data);
         }
@@ -255,7 +254,8 @@ public class PaymentController extends BaseController {
     @RequestMapping(value = "/payment_page",
             method = RequestMethod.GET, produces = "text/html;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity<String> getPaymentPage(@RequestParam(name = "t") String token) {
+    public ResponseEntity<String> getPaymentPage(HttpServletRequest servletRequest,
+                                                 @RequestParam(name = "t") String token) {
 
         try {
             Payment payment = this.getCore_().getPaymentDao().getPaymentByToken(token, Payment.PAY_STATUS_CREATED);
@@ -380,10 +380,10 @@ public class PaymentController extends BaseController {
 
             return ResponseEntity.ok(html);
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /payment/payment_page: " + e.getMessage());
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Платёж не найден");
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /payment/payment_page: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("ERROR");
         }
     }

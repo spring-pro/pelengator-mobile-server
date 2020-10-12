@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Spring-Pro
+ * Copyright (c) 2020 Spring-Pro
  * Moscow, Russia
  * All rights reserved.
  *
@@ -10,7 +10,7 @@
  * Author: Maxim Zemskov, https://www.linkedin.com/in/mzemskov/
  */
 
-package com.pelengator.server.mobile.rest.controllers;
+package com.pelengator.server.mobile.rest.controllers.v1;
 
 import com.google.gson.Gson;
 import com.pelengator.server.autofon.AutofonCommands;
@@ -24,13 +24,12 @@ import com.pelengator.server.mobile.Core;
 import com.pelengator.server.mobile.kafka.TransportCommandObject;
 import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
+import com.pelengator.server.mobile.rest.controllers.BaseController;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 import com.pelengator.server.mobile.rest.entity.request.device.*;
+import com.pelengator.server.mobile.rest.entity.request.v1.device.DeviceSetRequest;
 import com.pelengator.server.mobile.rest.entity.response.BaseCmdResponse;
-import com.pelengator.server.mobile.rest.entity.response.device.DeviceAddResponse;
-import com.pelengator.server.mobile.rest.entity.response.device.DevicePositionResponse;
-import com.pelengator.server.mobile.rest.entity.response.device.DeviceSettingsResponse;
-import com.pelengator.server.mobile.rest.entity.response.device.DeviceStateResponse;
+import com.pelengator.server.mobile.rest.entity.response.device.*;
 import com.pelengator.server.utils.ApplicationUtility;
 import com.pelengator.server.utils.DeviceLogger;
 import com.pelengator.server.utils.sms.SmsSender;
@@ -44,31 +43,32 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.*;
 
 @RestController
-@RequestMapping("/device")
-public class DeviceController extends BaseController {
+@RequestMapping("/v1/device")
+public class V1DeviceController extends BaseController {
 
-    private static final Logger LOGGER = Core.getLogger(DeviceController.class.getSimpleName());
+    private static final Logger LOGGER = Core.getLogger(V1DeviceController.class.getSimpleName());
 
     @RequestMapping(value = "/get/available_payments/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getAvailablePayments(@PathVariable("token") String token,
+    public ResponseEntity getAvailablePayments(HttpServletRequest servletRequest,
+                                               @PathVariable("token") String token,
                                                @PathVariable("uid") long uid,
-                                               @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                               @RequestBody String requestBody) {
 
         try {
             Device device;
 
             if (!StringUtils.isBlank(requestBody)) {
                 DeviceGetAvailablePaymentsRequest request =
-                        BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                                DeviceGetAvailablePaymentsRequest.class);
+                        BaseEntity.objectV1_0(requestBody, DeviceGetAvailablePaymentsRequest.class);
 
                 if (request == null)
                     throw new UnknownException(HttpStatus.OK.value());
@@ -121,11 +121,11 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /device/get/available_payments: " + e.getMessage());
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/available_payments: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -134,17 +134,14 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/add/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity addDevice(@PathVariable("token") String token,
+    public ResponseEntity addDevice(HttpServletRequest servletRequest,
+                                    @PathVariable("token") String token,
                                     @PathVariable("uid") long uid,
-                                    @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                    @RequestBody DeviceAddRequest request) {
 
         try {
-            DeviceAddRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceAddRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             DeviceAddResponse data = new DeviceAddResponse();
             Device device = this.getCore_().getDao().find(Device.class, "imei", request.getDeviceImei());
@@ -194,11 +191,11 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/state: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -207,17 +204,14 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/add_confirm/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity addDeviceConfirm(@PathVariable("token") String token,
+    public ResponseEntity addDeviceConfirm(HttpServletRequest servletRequest,
+                                           @PathVariable("token") String token,
                                            @PathVariable("uid") long uid,
-                                           @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                           @RequestBody DeviceAddConfirmRequest request) {
 
         try {
-            DeviceAddConfirmRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceAddConfirmRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             if (StringUtils.isBlank(request.getConfirm()))
                 throw new IncorrectDevicePasswordException(HttpStatus.OK.value());
@@ -252,11 +246,11 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/state: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -265,17 +259,14 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/edit/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity editDevice(@PathVariable("token") String token,
+    public ResponseEntity editDevice(HttpServletRequest servletRequest,
+                                     @PathVariable("token") String token,
                                      @PathVariable("uid") long uid,
-                                     @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                     @RequestBody DeviceEditRequest request) {
 
         try {
-            DeviceEditRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceEditRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             UserDevice userDevice = this.getCore_().getUserDeviceDao().getUserDevice(uid, request.getDeviceImei());
 
@@ -288,11 +279,11 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/state: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -301,17 +292,14 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/delete/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity deleteDevice(@PathVariable("token") String token,
+    public ResponseEntity deleteDevice(HttpServletRequest servletRequest,
+                                       @PathVariable("token") String token,
                                        @PathVariable("uid") long uid,
-                                       @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                       @RequestBody DeviceDeleteRequest request) {
 
         try {
-            DeviceDeleteRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceDeleteRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             UserDevice userDevice = this.getCore_().getUserDeviceDao().getUserDevice(uid, request.getDeviceImei());
 
@@ -321,11 +309,11 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/state: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -334,17 +322,14 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/set/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity deviceSet(
-            @PathVariable("token") String token,
-            @PathVariable("uid") long uid,
-            @RequestParam(name = "d", defaultValue = "") String requestBody) {
+    public ResponseEntity deviceSet(HttpServletRequest servletRequest,
+                                    @PathVariable("token") String token,
+                                    @PathVariable("uid") long uid,
+                                    @RequestBody DeviceSetRequest request) {
 
         try {
-            DeviceSetRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody), DeviceSetRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             Device device = this.getCore_().setUserCurrentDevice(uid, Long.parseLong(request.getImei()));
 
@@ -361,11 +346,38 @@ public class DeviceController extends BaseController {
                         new BaseResponse(HttpStatus.OK.value(), "", null));
             }
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /device/set: " + e.getMessage());
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/set: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/current/get/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity deviceCurrentGet(HttpServletRequest servletRequest,
+                                           @PathVariable("token") String token,
+                                           @PathVariable("uid") long uid) {
+
+        try {
+
+            Device currentDevice = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
+            DeviceCurrentGetResponse data = new DeviceCurrentGetResponse();
+
+            if (currentDevice != null)
+                data.setImei(currentDevice.getImei());
+
+            return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
+        } catch (BaseException e) {
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
+            return ResponseEntity.status(e.getCode()).body(
+                    new ErrorResponse(e.getLocalCode(), e.getMessage()));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -374,7 +386,8 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/get/settings/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getDeviceSettings(@PathVariable("token") String token,
+    public ResponseEntity getDeviceSettings(HttpServletRequest servletRequest,
+                                            @PathVariable("token") String token,
                                             @PathVariable("uid") long uid) {
 
         try {
@@ -693,7 +706,7 @@ public class DeviceController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/settings: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -721,7 +734,8 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/get/state/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getDeviceState(@PathVariable("token") String token,
+    public ResponseEntity getDeviceState(HttpServletRequest servletRequest,
+                                         @PathVariable("token") String token,
                                          @PathVariable("uid") long uid) {
 
         try {
@@ -1001,7 +1015,7 @@ public class DeviceController extends BaseController {
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/state: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -1010,7 +1024,8 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/cmd/{cmd}/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity sendCmd(@PathVariable("cmd") String cmd,
+    public ResponseEntity sendCmd(HttpServletRequest servletRequest,
+                                  @PathVariable("cmd") String cmd,
                                   @PathVariable("token") String token,
                                   @PathVariable("uid") long uid) {
 
@@ -1167,7 +1182,7 @@ public class DeviceController extends BaseController {
                                 "Успешно отправлено сообщений: " + sentMessagesCount, data));
             }
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/cmd: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(HttpStatus.NOT_IMPLEMENTED.value(), cause.getMessage()));
         }
@@ -1176,37 +1191,31 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/get/position/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getDevicePosition(@PathVariable("token") String token,
+    public ResponseEntity getDevicePosition(HttpServletRequest servletRequest,
+                                            @PathVariable("token") String token,
                                             @PathVariable("uid") long uid,
-                                            @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                            @RequestBody DevicePositionRequest request) {
 
         try {
-            DevicePositionRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DevicePositionRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             DevicePositionResponse data = new DevicePositionResponse();
             Device device = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
+            DeviceState deviceState = this.getCore_().getDeviceState(device.getId());
 
-            if (device != null) {
-                DeviceState deviceState = this.getCore_().getDeviceState(device.getId());
-
-                if (deviceState != null) {
-                    data.setPositionUpdatedAt(ApplicationUtility.getDateTimeInSeconds(deviceState.getPositionLastUpdatedAt()));
-                    data.setLat(deviceState.getLatitude());
-                    data.setLng(deviceState.getLongitude());
-                    data.setSpeed(deviceState.getSpeed());
-                    data.setAccuracy(deviceState.getDop());
-                }
+            if (deviceState != null) {
+                data.setPositionUpdatedAt(ApplicationUtility.getDateTimeInSeconds(deviceState.getPositionLastUpdatedAt()));
+                data.setLat(deviceState.getLatitude());
+                data.setLng(deviceState.getLongitude());
+                data.setSpeed(deviceState.getSpeed());
+                data.setAccuracy(deviceState.getDop());
             }
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/position: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -1215,17 +1224,14 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/get/tracking/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getDevicePositionTracking(@PathVariable("token") String token,
+    public ResponseEntity getDevicePositionTracking(HttpServletRequest servletRequest,
+                                                    @PathVariable("token") String token,
                                                     @PathVariable("uid") long uid,
-                                                    @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                                    @RequestBody DeviceTrackingRequest request) {
 
         try {
-            DeviceTrackingRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceTrackingRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             Device device = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
 
@@ -1262,7 +1268,7 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/tracking: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -1271,17 +1277,14 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/edit/kick_user/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity deleteUser(@PathVariable("token") String token,
+    public ResponseEntity deleteUser(HttpServletRequest servletRequest,
+                                     @PathVariable("token") String token,
                                      @PathVariable("uid") long uid,
-                                     @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                     @RequestBody DeviceDeleteUserRequest request) {
 
         try {
-            DeviceDeleteUserRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceDeleteUserRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             Device device = this.getCore_().getDao().find(Device.class, "imei", request.getDeviceImei());
             if (device == null)
@@ -1297,7 +1300,7 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/edit/kick_user: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -1306,15 +1309,12 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/edit/settings/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity editSettings(@PathVariable("token") String token,
+    public ResponseEntity editSettings(HttpServletRequest servletRequest,
+                                       @PathVariable("token") String token,
                                        @PathVariable("uid") long uid,
-                                       @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                       @RequestBody DeviceEditSettingsRequest request) {
 
         try {
-            DeviceEditSettingsRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceEditSettingsRequest.class);
-
             UserSettings userSettings = this.getCore_().getSettings(uid);
             if (request.getAutostartRuntime() != null)
                 userSettings.setAutoStartRuntime(request.getAutostartRuntime());
@@ -1323,7 +1323,7 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/edit/settings: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -1332,15 +1332,12 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/master_add/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity addMaster(@PathVariable("token") String token,
+    public ResponseEntity addMaster(HttpServletRequest servletRequest,
+                                    @PathVariable("token") String token,
                                     @PathVariable("uid") long uid,
-                                    @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                    @RequestBody DeviceAddMasterRequest request) {
 
         try {
-            DeviceAddMasterRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceAddMasterRequest.class);
-
             User user = this.getCore_().getDao().find(User.class, uid);
             if (user != null && user.getTypeId() == 3 && new BCryptPasswordEncoder().matches(request.getPassword(), user.getPassword())) {
                 Device device = this.getCore_().getDeviceDao().getDevice(request.getSerialNumber());
@@ -1366,11 +1363,11 @@ public class DeviceController extends BaseController {
 
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", null));
         } catch (BaseException e) {
-            LOGGER.error("REQUEST error -> /device/master_add: " + e.getMessage());
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
             return ResponseEntity.status(e.getCode()).body(
                     new ErrorResponse(e.getLocalCode(), e.getMessage()));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/master_add: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }
@@ -1379,17 +1376,14 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/get/history/{token}/{uid}",
             method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
     @ResponseBody
-    public ResponseEntity getDeviceHistory(@PathVariable("token") String token,
+    public ResponseEntity getDeviceHistory(HttpServletRequest servletRequest,
+                                           @PathVariable("token") String token,
                                            @PathVariable("uid") long uid,
-                                           @RequestParam(name = "d", defaultValue = "") String requestBody) {
+                                           @RequestBody DeviceHistoryRequest request) {
 
         try {
-            DeviceHistoryRequest request =
-                    BaseEntity.objectV1_0(ApplicationUtility.decrypt(appKey, requestBody),
-                            DeviceHistoryRequest.class);
-
             if (request == null)
-                throw new UnknownException(HttpStatus.OK.value());
+                throw new RequestBodyIsEmptyException(HttpStatus.OK.value());
 
             Device device = this.getCore_().getDevice(this.getCore_().getUserCurrentDevice(uid));
 
@@ -1473,7 +1467,7 @@ public class DeviceController extends BaseController {
             data.put("history", dataList);
             return ResponseEntity.status(HttpStatus.OK).body(new BaseResponse(HttpStatus.OK.value(), "", data));
         } catch (Throwable cause) {
-            LOGGER.error("REQUEST error -> /device/get/history: ", cause);
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
         }

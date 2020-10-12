@@ -59,7 +59,7 @@ public abstract class BaseController {
     protected int getSmsCode(User user) {
         int smsCode = 1234;
         if (!user.getPhone().equals("71111111117") &&
-                !user.getPhone().equals("79857777766") && !user.getPhone().equals("79653684111"))
+                !user.getPhone().equals("79857777766") && !user.getPhone().equals("71111111111"))
             smsCode = ApplicationUtility.generateRandomInt(1000, 9999);
         LOGGER.debug("SMS code: " + smsCode + " for user: " + user.getPhone());
         return smsCode;

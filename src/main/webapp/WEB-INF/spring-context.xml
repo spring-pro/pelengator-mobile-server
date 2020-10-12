@@ -46,5 +46,14 @@
     <bean name="paymentController" class="com.pelengator.server.mobile.rest.controllers.PaymentController"
           parent="baseController"/>
 
+    <bean name="v1UserController" class="com.pelengator.server.mobile.rest.controllers.v1.V1UserController"
+          parent="baseController"/>
+    <bean name="v1DialogController" class="com.pelengator.server.mobile.rest.controllers.v1.V1DialogController"
+          parent="baseController"/>
+    <bean name="v1DeviceController" class="com.pelengator.server.mobile.rest.controllers.v1.V1DeviceController"
+          parent="baseController"/>
+    <bean name="v1PaymentController" class="com.pelengator.server.mobile.rest.controllers.v1.V1PaymentController"
+          parent="baseController"/>
+
     <task:scheduler id="tasksScheduler" pool-size="10"/>
 </beans>

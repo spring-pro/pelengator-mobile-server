@@ -50,7 +50,14 @@ public class TokenFilter implements Filter {
                     && !apiMethodName.equals("/user/get/sms_code")
                     && !apiMethodName.equals("/user/confirm")
                     && !apiMethodName.equals("/payment/payment_page")
-                    && !apiMethodName.equals("/payment/status")) {
+                    && !apiMethodName.equals("/payment/status")
+
+                    && !apiMethodName.equals("/v1/user/login")
+                    && !apiMethodName.equals("/v1/user/set")
+                    && !apiMethodName.equals("/v1/user/get/sms_code")
+                    && !apiMethodName.equals("/v1/user/confirm")
+                    && !apiMethodName.equals("/v1/payment/payment_page")
+                    && !apiMethodName.equals("/v1/payment/status")) {
 
                 String token = core_.getCookieByName(request, "PHPSESSID");
                 if (StringUtils.isBlank(token))

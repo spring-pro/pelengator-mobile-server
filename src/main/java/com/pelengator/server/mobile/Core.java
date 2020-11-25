@@ -287,7 +287,7 @@ public class Core {
             if (cmd != null && btnCmd.equals("alarm")) {
                 cmdIpProgress.remove(btnCmd);
             } else if (cmd != null) {
-                if (cmd.get("oldSate") == btnState && (System.currentTimeMillis() - (Long) cmd.get("sentAt")) < 20000) {
+                if (cmd.get("oldSate") == btnState && (System.currentTimeMillis() - (Long) cmd.get("sentAt")) < 30000) {
                     item.put("state_id", 1);
                 } else {
                     item.put("state_id", btnState ? 2 : 0);

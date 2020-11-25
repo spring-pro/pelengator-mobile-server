@@ -865,15 +865,17 @@ public class DeviceController extends BaseController {
                                             (device.getFreeUsageFinishedAt() == null ||
                                                     device.getFreeUsageFinishedAt().getTime() < ApplicationUtility.getCurrentTimeStampGMT_0())))
                     ) {
-                        if ((17 != Math.round((Double) item.get("id"))) && (4 != Math.round((Double) item.get("id")))) {
+                        if ((17 != Math.round((Double) item.get("id")))
+                                //&& (4 != Math.round((Double) item.get("id")))
+                        ) {
                             item.put("enable", 0);
                         }
 
-                        if (4 == Math.round((Double) item.get("id"))) {
+                        /*if (4 == Math.round((Double) item.get("id"))) {
                             item.put("enable", 1);
                             this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
                                     deviceState.isValetStatus());
-                        }
+                        }*/
                     } else if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
                         if (6 != Math.round((Double) item.get("id")) &&
                                 18 != Math.round((Double) item.get("id")) &&

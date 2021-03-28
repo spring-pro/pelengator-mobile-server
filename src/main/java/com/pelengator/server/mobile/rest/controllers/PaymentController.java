@@ -270,10 +270,11 @@ public class PaymentController extends BaseController {
             String htmlSelectOptions = "";
             switch (payment.getPayType()) {
                 case Payment.PAY_TYPE_TELEMATICS: {
-                    if (device.getKitName().equals(ApplicationConstants.KIT_NAME_PELENGATOR_T))
+                    /*if (device.getKitName().equals(ApplicationConstants.KIT_NAME_PELENGATOR_T))
                         htmlSelectOptions += "                           <option value=\"12|1800\" selected>1 год - 1.800Р</option>\n";
                     else
-                        htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";
+                        htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";*/
+                    htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";
                     break;
                 }
                 case Payment.PAY_TYPE_ACTIVATION: {
@@ -317,6 +318,25 @@ public class PaymentController extends BaseController {
                     "            this.pay = function () {\n" +
                     "                var widget = new cp.CloudPayments({startWithButton: false});\n" +
                     "                var period_int = 12\n" +
+                    "                var receipt = {\n" +
+                    "                   Items: [\n" +
+                    "                       {\n" +
+                    "                           label: getTitle(" + payment.getPayType() + "),\n" +
+                    "                           price: getAmount(),\n" +
+                    "                           quantity: 1,\n" +
+                    "                           amount: getAmount(),\n" +
+                    "                           vat: 0,\n" +
+                    "                           method: 1\n" +
+                    "                       }\n" +
+                    "                   ],\n" +
+                    "                   taxationSystem: 2,\n" +
+                    "                   amounts: {\n" +
+                    "                       electronic: getAmount(), \n" +
+                    "                       advancePayment: 0.00, \n" +
+                    "                       credit: 0.00, \n" +
+                    "                       provision: 0.00 \n" +
+                    "                   }\n" +
+                    "                }\n" +
                     "                widget.charge({\n" +
                     "                        publicId: 'pk_e507e6e555398c43e6cbbd4738860',\n" +
                     "                        description: getTitle(" + payment.getPayType() + "),\n" +
@@ -325,7 +345,10 @@ public class PaymentController extends BaseController {
                     "                        invoiceId: '" + payment.getId() + "',\n" +
                     "                        accountId: '" + user.getAccountNum() + "',\n" +
                     "                        data: {\n" +
-                    "                            period: getPeriod()\n" +
+                    "                            period: getPeriod(),\n" +
+                    "                            cloudPayments: {\n" +
+                    "                               customerReceipt: receipt\n" +
+                    "                            }\n" +
                     "                        }\n" +
                     "                    },\n" +
                     "                    function (options) {\n" +

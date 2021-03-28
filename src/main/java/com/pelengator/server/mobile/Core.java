@@ -208,7 +208,7 @@ public class Core {
     public Payment getPaymentTelematics(long deviceId) throws Exception {
         //Payment payment = getPaymentTelematicsFromCacheL2(deviceId);
         //if (payment == null)
-            //payment = paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_TELEMATICS);
+        //payment = paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_TELEMATICS);
 
         //return payment;
         return paymentDao.getPayedPayment(deviceId, Payment.PAY_TYPE_TELEMATICS);
@@ -281,7 +281,7 @@ public class Core {
     }
 
     public void getCmdBtnState(Map<String, Map<String, Object>> cmdIpProgress, Map<String, Object> item,
-                                              String btnCmd, Boolean btnState) {
+                               String btnCmd, Boolean btnState) {
         if (cmdIpProgress != null && !cmdIpProgress.isEmpty()) {
             Map<String, Object> cmd = cmdIpProgress.get(btnCmd);
             if (cmd != null && btnCmd.equals("alarm")) {
@@ -298,6 +298,34 @@ public class Core {
                     item.put("state_id", 0);
                 else {
                     item.put("state_id", 5);
+                }
+            }
+        } else {
+            if (btnCmd.equals("sos"))
+                item.put("state_id", 0);
+            else
+                item.put("state_id", btnState ? 2 : 0);
+        }
+    }
+
+    public void getCmdBtnStateV1(Map<String, Map<String, Object>> cmdIpProgress, Map<String, Object> item,
+                                 String btnCmd, Boolean btnState) {
+        if (cmdIpProgress != null && !cmdIpProgress.isEmpty()) {
+            Map<String, Object> cmd = cmdIpProgress.get(btnCmd);
+            if (cmd != null && btnCmd.equals("alarm")) {
+                cmdIpProgress.remove(btnCmd);
+            } else if (cmd != null) {
+                if (cmd.get("oldSate") == btnState && (System.currentTimeMillis() - (Long) cmd.get("sentAt")) < 30000) {
+                    item.put("state_id", 1);
+                } else {
+                    item.put("state_id", btnState ? 2 : 0);
+                    cmdIpProgress.remove(btnCmd);
+                }
+            } else {
+                if (btnCmd.equals("sos"))
+                    item.put("state_id", 0);
+                else {
+                    item.put("state_id", btnState ? 2 : 0);
                 }
             }
         } else {

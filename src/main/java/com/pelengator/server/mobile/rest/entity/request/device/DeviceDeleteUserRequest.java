@@ -15,6 +15,7 @@ package com.pelengator.server.mobile.rest.entity.request.device;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.annotations.Since;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
+import org.apache.logging.log4j.core.tools.picocli.CommandLine;
 
 public class DeviceDeleteUserRequest extends BaseEntity {
 

@@ -250,7 +250,7 @@ public class UserController extends BaseController {
                 alarmDeviceItem.put("model", item.getCarModel());
                 alarmDeviceItem.put("gosnomer", item.getCarNumber());
                 alarmDeviceItem.put("add_date", item.getCreatedAt().toString());
-                alarmDeviceItem.put("complect_name", "");
+                alarmDeviceItem.put("complect_name", StringUtils.trimToEmpty(item.getKitName()));
                 alarmDeviceItem.put("serial_number", item.getSerialNumber());
                 alarmDeviceItem.put("phone_number", item.getPhoneNumber());
                 alarmDeviceItem.put("access_type", "3");

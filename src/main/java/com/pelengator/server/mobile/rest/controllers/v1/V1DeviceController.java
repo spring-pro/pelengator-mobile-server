@@ -885,7 +885,7 @@ public class V1DeviceController extends BaseController {
 
                         if (4 == Math.round((Double) item.get("id"))) {
                             item.put("enable", 1);
-                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
+                            this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "service",
                                     deviceState.isValetStatus());
                         }
                     } else if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
@@ -898,30 +898,30 @@ public class V1DeviceController extends BaseController {
                     } else {
                         item.put("enable", 1);
                         if (19 == Math.round((Double) item.get("id"))) {
-                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "arm",
+                            this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "arm",
                                     deviceState.isArmStatus());
                         } else if (1 == Math.round((Double) item.get("id"))) {
                             if (deviceState.isFortinStatus())
-                                this.getCore_().getCmdBtnState(cmdIpProgress, item, "engine",
+                                this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "engine",
                                         deviceState.isTachometerStatus());
                             else
                                 item.put("enable", 0);
                         } else if (5 == Math.round((Double) item.get("id"))) {
-                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "block",
+                            this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "block",
                                     deviceState.isAhyStatus());
                         } else if (8 == Math.round((Double) item.get("id"))) {
                             if (deviceState.isFortinStatus())
-                                this.getCore_().getCmdBtnState(cmdIpProgress, item, "lock",
+                                this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "lock",
                                         deviceState.isCentralLockStatus());
                             else
                                 item.put("enable", 0);
                         } else if (4 == Math.round((Double) item.get("id"))) {
-                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
+                            this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "service",
                                     deviceState.isValetStatus());
                         } else if (12 == Math.round((Double) item.get("id"))) {
-                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "alarm", false);
+                            this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "alarm", false);
                         } else if (6 == Math.round((Double) item.get("id"))) {
-                            this.getCore_().getCmdBtnState(cmdIpProgress, item, "sos", true);
+                            this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "sos", true);
                         }
                     }
                 });
@@ -930,8 +930,15 @@ public class V1DeviceController extends BaseController {
                     bottomButtonsList.forEach(item -> {
                         if (201 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 201);
-                            item.put("text", String.format("%.2f", (deviceState.getExternalPower())) + " v");
-                            item.put("percent", Math.round((deviceState.getExternalPower()) * 100 / 15));
+                            item.put("text", String.format("%.2f", deviceState.getExternalPower() + 0.2f) + " v");
+                            // в расчете учавствует коэффициент 3.5, который равен разнице между нижним и верхним порогами напряжения АКБ
+                            // 13.6 - 10.1 = 3.5
+                            if (deviceState.getExternalPower() + 0.2f <= 10.1f)
+                                item.put("percent", 0);
+                            else if (deviceState.getExternalPower() + 0.2f > 13.6f)
+                                item.put("percent", 100);
+                            else
+                                item.put("percent", Math.round(((deviceState.getExternalPower() + 0.2f) - 10.1) * 100 / 3.5));
                         } else if (208 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 208);
                             item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
@@ -945,22 +952,26 @@ public class V1DeviceController extends BaseController {
                             item.put("percent", deviceState.getGsmQuality() * 100 / 7);
                             if (deviceState.getGsmQuality() <= 0)
                                 item.put("text", "нет связи");
-                            else if (deviceState.getGsmQuality() <= 3)
+                            else if (deviceState.getGsmQuality() > 0 && deviceState.getGsmQuality() < 2)
                                 item.put("text", "плохо");
-                            else if (deviceState.getGsmQuality() > 3 && deviceState.getGpsQuality() < 6)
+                            else if (deviceState.getGsmQuality() >= 2 && deviceState.getGsmQuality() < 4)
+                                item.put("text", "умеренно");
+                            else if (deviceState.getGsmQuality() >= 4 && deviceState.getGsmQuality() < 6)
                                 item.put("text", "хорошо");
-                            else
+                            else if (deviceState.getGsmQuality() >= 6)
                                 item.put("text", "отлично");
                         } else if (206 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 206);
                             item.put("percent", deviceState.getGpsQuality() * 100 / 18);
                             if (deviceState.getGpsQuality() <= 0)
                                 item.put("text", "нет связи");
-                            else if (deviceState.getGpsQuality() < 9)
+                            else if (deviceState.getGpsQuality() > 0 && deviceState.getGpsQuality() < 5)
                                 item.put("text", "плохо");
-                            else if (deviceState.getGpsQuality() > 9 && deviceState.getGpsQuality() < 17)
+                            else if (deviceState.getGpsQuality() >= 5 && deviceState.getGpsQuality() < 10)
+                                item.put("text", "умеренно");
+                            else if (deviceState.getGpsQuality() >= 10 && deviceState.getGpsQuality() < 14)
                                 item.put("text", "хорошо");
-                            else
+                            else if (deviceState.getGpsQuality() >= 14)
                                 item.put("text", "отлично");
                         } else if (202 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 202);

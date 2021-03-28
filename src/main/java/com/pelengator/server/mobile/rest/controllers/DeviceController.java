@@ -866,7 +866,7 @@ public class DeviceController extends BaseController {
                                                     device.getFreeUsageFinishedAt().getTime() < ApplicationUtility.getCurrentTimeStampGMT_0())))
                     ) {
                         if ((17 != Math.round((Double) item.get("id")))
-                                //&& (4 != Math.round((Double) item.get("id")))
+                            //&& (4 != Math.round((Double) item.get("id")))
                         ) {
                             item.put("enable", 0);
                         }
@@ -918,8 +918,15 @@ public class DeviceController extends BaseController {
                     bottomButtonsList.forEach(item -> {
                         if (201 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 201);
-                            item.put("text", String.format("%.2f", (deviceState.getExternalPower())) + " v");
-                            item.put("percent", Math.round((deviceState.getExternalPower()) * 100 / 15));
+                            item.put("text", String.format("%.2f", deviceState.getExternalPower() + 0.2f) + " v");
+                            // в расчете учавствует коэффициент 3.5, который равен разнице между нижним и верхним порогами напряжения АКБ
+                            // 13.6 - 10.1 = 3.5
+                            if (deviceState.getExternalPower() + 0.2f <= 10.1f)
+                                item.put("percent", 0);
+                            else if (deviceState.getExternalPower() + 0.2f > 13.6f)
+                                item.put("percent", 100);
+                            else
+                                item.put("percent", Math.round(((deviceState.getExternalPower() + 0.2f) - 10.1) * 100 / 3.5));
                         } else if (208 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 208);
                             item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
@@ -933,22 +940,26 @@ public class DeviceController extends BaseController {
                             item.put("percent", deviceState.getGsmQuality() * 100 / 7);
                             if (deviceState.getGsmQuality() <= 0)
                                 item.put("text", "нет связи");
-                            else if (deviceState.getGsmQuality() <= 3)
+                            else if (deviceState.getGsmQuality() > 0 && deviceState.getGsmQuality() < 2)
                                 item.put("text", "плохо");
-                            else if (deviceState.getGsmQuality() > 3 && deviceState.getGpsQuality() < 6)
+                            else if (deviceState.getGsmQuality() >= 2 && deviceState.getGsmQuality() < 4)
+                                item.put("text", "умеренно");
+                            else if (deviceState.getGsmQuality() >= 4 && deviceState.getGsmQuality() < 6)
                                 item.put("text", "хорошо");
-                            else
+                            else if (deviceState.getGsmQuality() >= 6)
                                 item.put("text", "отлично");
                         } else if (206 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 206);
                             item.put("percent", deviceState.getGpsQuality() * 100 / 18);
                             if (deviceState.getGpsQuality() <= 0)
                                 item.put("text", "нет связи");
-                            else if (deviceState.getGpsQuality() < 9)
+                            else if (deviceState.getGpsQuality() > 0 && deviceState.getGpsQuality() < 5)
                                 item.put("text", "плохо");
-                            else if (deviceState.getGpsQuality() > 9 && deviceState.getGpsQuality() < 17)
+                            else if (deviceState.getGpsQuality() >= 5 && deviceState.getGpsQuality() < 10)
+                                item.put("text", "умеренно");
+                            else if (deviceState.getGpsQuality() >= 10 && deviceState.getGpsQuality() < 14)
                                 item.put("text", "хорошо");
-                            else
+                            else if (deviceState.getGpsQuality() >= 14)
                                 item.put("text", "отлично");
                         } else if (202 == Math.round((Double) item.get("icon_id"))) {
                             item.put("icon_id", 202);
@@ -1026,19 +1037,23 @@ public class DeviceController extends BaseController {
                     this.getCore_().getDeviceState(this.getCore_().getUserCurrentDevice(uid));
 
             DeviceLog deviceLog = new DeviceLog();
-            deviceLog.setDeviceId(device.getId());
-            deviceLog.setAdminId(null);
-            deviceLog.setUserId(uid);
-            deviceLog.setSenderType(DeviceLog.CommandSenderTypeEnum.USER.name());
-            deviceLog.setLogType(DeviceLogger.LOG_TYPE_OUTPUT_EVENT);
-            deviceLog.setEventType(0);
-            deviceLog.setMessage(cmd);
-            deviceLog.setSent(false);
-            deviceLog.setDescription("");
-            deviceLog.setErrMsg("");
-            deviceLog.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
-            deviceLog.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
-            this.getCore_().getDao().save(deviceLog);
+            try {
+                deviceLog.setDeviceId(device.getId());
+                deviceLog.setAdminId(null);
+                deviceLog.setUserId(uid);
+                deviceLog.setSenderType(DeviceLog.CommandSenderTypeEnum.USER.name());
+                deviceLog.setLogType(DeviceLogger.LOG_TYPE_OUTPUT_EVENT);
+                deviceLog.setEventType(0);
+                deviceLog.setMessage(cmd);
+                deviceLog.setSent(false);
+                deviceLog.setDescription("");
+                deviceLog.setErrMsg("");
+                deviceLog.setCreatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                deviceLog.setUpdatedAt(new Timestamp(ApplicationUtility.getCurrentTimeStampGMT_0()));
+                this.getCore_().getDao().save(deviceLog);
+            } catch (Throwable cause) {
+                LOGGER.error("REQUEST error -> /device/cmd: ", cause);
+            }
 
             BaseCmdResponse response = new BaseCmdResponse();
 

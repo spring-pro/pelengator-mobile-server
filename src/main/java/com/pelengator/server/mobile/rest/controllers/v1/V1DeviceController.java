@@ -21,6 +21,7 @@ import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.*;
 import com.pelengator.server.mobile.Core;
+import com.pelengator.server.mobile.dto.ChangeUserSmsMapCacheL3Object;
 import com.pelengator.server.mobile.kafka.TransportCommandObject;
 import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
@@ -1481,6 +1482,77 @@ public class V1DeviceController extends BaseController {
             LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse(0, cause.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/change_user/{token}/{uid}",
+            method = RequestMethod.POST, produces = "application/json;charset=UTF-8")
+    @ResponseBody
+    public ResponseEntity changeUser(HttpServletRequest servletRequest,
+                                     @PathVariable("token") String token,
+                                     @PathVariable("uid") long uid,
+                                     @RequestBody DeviceChangeUserRequest request) {
+
+        try {
+            User user = this.getCore_().getDao().find(User.class, uid);
+            if (user == null)
+                throw new UserNotFoundException(HttpStatus.OK.value());
+
+            Device device = this.getCore_().getDao().find(Device.class, "imei", request.getDeviceImei());
+            if (device == null)
+                throw new IncorrectIMEIException(HttpStatus.OK.value());
+
+            User oldUser = this.getCore_().getDao().find(User.class, "phone", request.getOldPhoneNum());
+            if (oldUser == null)
+                throw new UserNotFoundException(HttpStatus.OK.value());
+
+            User newUser = this.getCore_().getDao().find(User.class, "phone", request.getNewPhoneNum());
+            if (newUser == null)
+                throw new UserNotFoundException(HttpStatus.OK.value());
+
+            if (!Objects.equals(user.getId(), oldUser.getId()))
+                throw new UserHasNoPermissionsToChangeDeviceException(HttpStatus.OK.value());
+
+            UserDevice masterUserDevice = this.getCore_().getUserDeviceDao().getMasterUserDevice(device.getId());
+            if (masterUserDevice == null || !masterUserDevice.getUserId().equals(oldUser.getId()))
+                throw new UserHasNoPermissionsToChangeDeviceException(HttpStatus.OK.value());
+
+            if (StringUtils.isBlank(request.getSmsCode())) {
+                int smsCode = getSmsCode(oldUser);
+                if (!SmsSender.send(user.getPhone(), "Pelengator change auto user code: " + smsCode))
+                    throw new UnknownException(HttpStatus.OK.value());
+
+                this.getCore_().getChangeUserSmsMapCacheL3().put(request.getDeviceImei(),
+                        ChangeUserSmsMapCacheL3Object.getJson(
+                                request.getOldPhoneNum(), request.getNewPhoneNum(), Integer.toString(smsCode)));
+
+                Map<String, String> data = new HashMap<>(1);
+                data.put("smsCode", Integer.toString(smsCode));
+
+                return ResponseEntity.status(HttpStatus.OK).body(
+                        new BaseResponse(HttpStatus.OK.value(), "", data));
+            } else {
+                if (request.getSmsCode().equals(ChangeUserSmsMapCacheL3Object.getInstance(
+                        this.getCore_().getChangeUserSmsMapCacheL3().remove(request.getDeviceImei())
+                ).getSmsCode())) {
+
+                    this.getCore_().getUserDeviceDao().changeDeviceMasterUser(masterUserDevice.getId(), newUser.getId());
+                } else {
+                    this.getCore_().getChangeUserSmsMapCacheL3().remove(request.getDeviceImei());
+                    throw new WrongSmsCodeException(HttpStatus.OK.value());
+                }
+
+                return ResponseEntity.status(HttpStatus.OK).body(
+                        new BaseResponse(HttpStatus.OK.value(), "", null));
+            }
+        } catch (BaseException e) {
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": " + e.getMessage());
+            return ResponseEntity.status(e.getCode()).body(
+                    new ErrorResponse(e.getLocalCode(), e.getMessage()));
+        } catch (Throwable cause) {
+            LOGGER.error("REQUEST error -> " + servletRequest.getPathInfo() + ": ", cause);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), cause.getMessage()));
         }
     }
 }

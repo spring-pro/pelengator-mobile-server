@@ -234,27 +234,49 @@ public class V1DialogController extends BaseController {
 
         try {
             TimeZone timeZone = TimeZone.getTimeZone(ApplicationUtility.GMT_3);
+            Calendar currDate2359H = Calendar.getInstance(timeZone);
+            currDate2359H.set(Calendar.HOUR_OF_DAY, 23);
+            currDate2359H.set(Calendar.MINUTE, 59);
+            currDate2359H.set(Calendar.SECOND, 59);
+            currDate2359H.set(Calendar.MILLISECOND, 0);
+
+            Calendar currDate0001H = Calendar.getInstance(timeZone);
+            currDate0001H.set(Calendar.HOUR_OF_DAY, 0);
+            currDate0001H.set(Calendar.MINUTE, 0);
+            currDate0001H.set(Calendar.SECOND, 0);
+            currDate0001H.set(Calendar.MILLISECOND, 0);
+
             Calendar currDate21H = Calendar.getInstance(timeZone);
             currDate21H.set(Calendar.HOUR_OF_DAY, 21);
             currDate21H.set(Calendar.MINUTE, 0);
             currDate21H.set(Calendar.SECOND, 0);
             currDate21H.set(Calendar.MILLISECOND, 0);
 
-            Calendar nextDate09H = Calendar.getInstance(timeZone);
-            nextDate09H.add(Calendar.DATE, 1);
-            nextDate09H.set(Calendar.HOUR_OF_DAY, 9);
-            nextDate09H.set(Calendar.MINUTE, 0);
-            nextDate09H.set(Calendar.SECOND, 0);
-            nextDate09H.set(Calendar.MILLISECOND, 0);
+            Calendar currDate09H = Calendar.getInstance(timeZone);
+            currDate09H.set(Calendar.HOUR_OF_DAY, 9);
+            currDate09H.set(Calendar.MINUTE, 0);
+            currDate09H.set(Calendar.SECOND, 0);
+            currDate09H.set(Calendar.MILLISECOND, 0);
 
-            if (ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) > currDate21H.getTimeInMillis() &&
-                    ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) < nextDate09H.getTimeInMillis()) {
+            if (ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) > currDate21H.getTimeInMillis() ||
+                    ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) < currDate09H.getTimeInMillis()) {
 
-                Number dialogMessageCount = this.getCore_().getDialogDao().getDialogMessagesCountBySenderIdAndCreatedAtBetween(
-                        dialog.getId(),
-                        2L,  // User "Pelengator"
-                        new Timestamp(currDate21H.getTimeInMillis()),
-                        new Timestamp(nextDate09H.getTimeInMillis()));
+                Number dialogMessageCount = 0;
+                if (ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) > currDate21H.getTimeInMillis()) {
+                    dialogMessageCount = this.getCore_().getDialogDao().getDialogMessagesCountBySenderIdAndCreatedAtBetween(
+                            dialog.getId(),
+                            8L,  // User "Pelengator Auto-reply"
+                            new Timestamp(currDate21H.getTimeInMillis()),
+                            new Timestamp(currDate2359H.getTimeInMillis()));
+                }
+
+                if (ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) < currDate09H.getTimeInMillis()) {
+                    dialogMessageCount = this.getCore_().getDialogDao().getDialogMessagesCountBySenderIdAndCreatedAtBetween(
+                            dialog.getId(),
+                            8L,  // User "Pelengator Auto-reply"
+                            new Timestamp(currDate0001H.getTimeInMillis()),
+                            new Timestamp(currDate09H.getTimeInMillis()));
+                }
 
                 if (dialogMessageCount == null || dialogMessageCount.intValue() == 0) {
                     String messageText = "Спасибо за обращение! Ваше сообщение принято в обработку. Оператор ответит Вам с 9:00 до 21:00 часов. Для экстренной связи воспользуйтесь, пожалуйста, номером технической поддержки 8 800 234-84-43";
@@ -263,7 +285,7 @@ public class V1DialogController extends BaseController {
                     dialogMessage = new DialogMessage();
                     dialogMessage.setDialogId(dialog.getId());
                     dialogMessage.setSenderType(DialogMessage.SENDER_TYPE_SUPPORT);
-                    dialogMessage.setSenderId(2L); // User "Pelengator"
+                    dialogMessage.setSenderId(8L); // User "Pelengator Auto-reply"
                     dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_SYSTEM);
                     dialogMessage.setMessage(messageText.trim());
                     dialogMessage.setIsRead(false);

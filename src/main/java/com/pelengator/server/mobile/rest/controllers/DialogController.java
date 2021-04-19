@@ -214,7 +214,7 @@ public class DialogController extends BaseController {
                 if (ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) > currDate21H.getTimeInMillis()) {
                     dialogMessageCount = this.getCore_().getDialogDao().getDialogMessagesCountBySenderIdAndCreatedAtBetween(
                             dialog.getId(),
-                            2L,  // User "Pelengator"
+                            8L,  // User "Pelengator Auto-reply"
                             new Timestamp(currDate21H.getTimeInMillis()),
                             new Timestamp(currDate2359H.getTimeInMillis()));
                 }
@@ -222,11 +222,10 @@ public class DialogController extends BaseController {
                 if (ApplicationUtility.getCurrentTimeStampByGMT(ApplicationUtility.GMT_3) < currDate09H.getTimeInMillis()) {
                     dialogMessageCount = this.getCore_().getDialogDao().getDialogMessagesCountBySenderIdAndCreatedAtBetween(
                             dialog.getId(),
-                            2L,  // User "Pelengator"
+                            8L,  // User "Pelengator Auto-reply"
                             new Timestamp(currDate0001H.getTimeInMillis()),
                             new Timestamp(currDate09H.getTimeInMillis()));
                 }
-
 
                 if (dialogMessageCount == null || dialogMessageCount.intValue() == 0) {
                     String messageText = "Спасибо за обращение! Ваше сообщение принято в обработку. Оператор ответит Вам с 9:00 до 21:00 часов. Для экстренной связи воспользуйтесь, пожалуйста, номером технической поддержки 8 800 234-84-43";
@@ -235,7 +234,7 @@ public class DialogController extends BaseController {
                     dialogMessage = new DialogMessage();
                     dialogMessage.setDialogId(dialog.getId());
                     dialogMessage.setSenderType(DialogMessage.SENDER_TYPE_SUPPORT);
-                    dialogMessage.setSenderId(2L); // User "Pelengator"
+                    dialogMessage.setSenderId(8L); // User "Pelengator Auto-reply"
                     dialogMessage.setMessageType(DialogMessage.MESSAGE_TYPE_SYSTEM);
                     dialogMessage.setMessage(messageText.trim());
                     dialogMessage.setIsRead(false);

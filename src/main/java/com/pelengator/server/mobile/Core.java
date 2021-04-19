@@ -43,6 +43,7 @@ public class Core {
     private String gatewayCmdURL;
 
     private Map<String, Integer> userSmsMapCacheL3 = new ConcurrentHashMap<>();
+    private Map<Long, String> changeUserSmsMapCacheL3 = new ConcurrentHashMap<>();
     private Map<String, String> userPhoneTokenMapCacheL3 = new ConcurrentHashMap<>();
     private Map<String, User> phoneUserMapCacheL3 = new ConcurrentHashMap<>();
     private Map<Long, Long> userCurrentDeviceCacheL3 = new ConcurrentHashMap<>();
@@ -379,6 +380,10 @@ public class Core {
 
     public Map<String, Integer> getUserSmsMapCacheL3() {
         return userSmsMapCacheL3;
+    }
+
+    public Map<Long, String> getChangeUserSmsMapCacheL3() {
+        return changeUserSmsMapCacheL3;
     }
 
     public Dao getDao() {

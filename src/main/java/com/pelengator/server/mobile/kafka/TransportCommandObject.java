@@ -19,11 +19,11 @@ public class TransportCommandObject {
 
     private static Gson gson = (new GsonBuilder()).create();
 
-    private long imei;
-    private long commandHistoryId;
+    private Long imei;
+    private Long commandHistoryId;
     private String command;
 
-    public TransportCommandObject(long imei, long commandHistoryId, String command) {
+    public TransportCommandObject(Long imei, Long commandHistoryId, String command) {
         this.imei = imei;
         this.commandHistoryId = commandHistoryId;
         this.command = command;
@@ -41,7 +41,7 @@ public class TransportCommandObject {
         return imei;
     }
 
-    public void setImei(long imei) {
+    public void setImei(Long imei) {
         this.imei = imei;
     }
 
@@ -49,7 +49,7 @@ public class TransportCommandObject {
         return commandHistoryId;
     }
 
-    public void setCommandHistoryId(long commandHistoryId) {
+    public void setCommandHistoryId(Long commandHistoryId) {
         this.commandHistoryId = commandHistoryId;
     }
 

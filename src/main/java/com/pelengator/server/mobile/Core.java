@@ -60,6 +60,7 @@ public class Core {
     private PaymentDao paymentDao = new PaymentDao();
     private DialogDao dialogDao = new DialogDao();
     private UserTokenDao userTokenDao = new UserTokenDao();
+    private StrfDao strfDao = new StrfDao();
 
     private String hazelcastServers;
     private HazelcastClient hazelcastClient;
@@ -420,6 +421,10 @@ public class Core {
 
     public PaymentDao getPaymentDao() {
         return paymentDao;
+    }
+
+    public StrfDao getStrfDao() {
+        return strfDao;
     }
 
     public String getHazelcastServers() {

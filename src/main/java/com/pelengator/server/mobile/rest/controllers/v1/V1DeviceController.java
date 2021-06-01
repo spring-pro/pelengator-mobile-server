@@ -105,7 +105,7 @@ public class V1DeviceController extends BaseController {
                 } else {
                     int payFullPeriodDays = getPayTelematicsFullPeriodDays(paymentTelematics);
                     int payStateDays = getPayTelematicsStateDays(paymentTelematics, payFullPeriodDays);
-                    telematics.put("text", payStateDays < 0 ? 0 : payStateDays + "дн.");
+                    telematics.put("text", payStateDays < 0 ? 0 + "дн." : payStateDays + "дн.");
                     telematics.put("color", PAYMENT_ITEM_STATE_ACTIVE);
                 }
             }

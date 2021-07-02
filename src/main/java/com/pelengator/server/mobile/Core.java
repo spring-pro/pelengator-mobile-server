@@ -57,6 +57,7 @@ public class Core {
     private DeviceStateDao deviceStateDao = new DeviceStateDao();
     private DevicePositionDao devicePositionDao = new DevicePositionDao();
     private DeviceUserHistoryDao deviceUserHistoryDao = new DeviceUserHistoryDao();
+    private DeviceActivationsDao deviceActivationsDao = new DeviceActivationsDao();
     private PaymentDao paymentDao = new PaymentDao();
     private DialogDao dialogDao = new DialogDao();
     private UserTokenDao userTokenDao = new UserTokenDao();
@@ -413,6 +414,10 @@ public class Core {
 
     public DeviceUserHistoryDao getDeviceUserHistoryDao() {
         return deviceUserHistoryDao;
+    }
+
+    public DeviceActivationsDao getDeviceActivationsDao() {
+        return deviceActivationsDao;
     }
 
     public DialogDao getDialogDao() {

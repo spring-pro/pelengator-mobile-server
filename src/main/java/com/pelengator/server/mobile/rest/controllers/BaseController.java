@@ -283,11 +283,13 @@ public abstract class BaseController {
                         item.put("enable", 0);
                     }
 
+                    /*
+                    очередной раз переиграно - 02.07.2021 - ОТКЛ. Егор
                     if (4 == Math.round((Double) item.get("id"))) {
                         item.put("enable", 1);
                         this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "service",
                                 deviceState.isValetStatus());
-                    }
+                    }*/
                 } else if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
                     if (6 != Math.round((Double) item.get("id")) &&
                             18 != Math.round((Double) item.get("id")) &&
@@ -326,7 +328,22 @@ public abstract class BaseController {
                 }
             });
 
-            if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.CONNECTED.name())) {
+            if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name()) ||
+                    (payStateDays <= 0 && (device.getFreeUsageFinishedAt() == null ||
+                    device.getFreeUsageFinishedAt().getTime() > ApplicationUtility.getCurrentTimeStampGMT_0()))) {
+
+                bottomButtonsList.forEach(item -> {
+                    if (208 == Math.round((Double) item.get("icon_id"))) {
+                        item.put("icon_id", 208);
+                        item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
+                        item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
+                    } else if (209 == Math.round((Double) item.get("icon_id"))) {
+                        item.put("icon_id", 209);
+                        item.put("text", (Math.max(payStateDays, 0)) + " дн.");
+                        item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
+                    }
+                });
+            } else if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.CONNECTED.name())) {
                 bottomButtonsList.forEach(item -> {
                     if (201 == Math.round((Double) item.get("icon_id"))) {
                         item.put("icon_id", 201);
@@ -404,18 +421,6 @@ public abstract class BaseController {
                 }
 
                 data.getButtons().put("bottom", bottomButtonsList);
-            } else {
-                bottomButtonsList.forEach(item -> {
-                    if (208 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 208);
-                        item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
-                        item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
-                    } else if (209 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 209);
-                        item.put("text", (Math.max(payStateDays, 0)) + " дн.");
-                        item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
-                    }
-                });
             }
         }
     }
@@ -462,11 +467,13 @@ public abstract class BaseController {
                             item.put("enable", 0);
                         }
 
+                        /*
+                        очередной раз переиграно - 02.07.2021 - ОТКЛ. Егор
                         if (4 == Math.round((Double) item.get("id"))) {
                             item.put("enable", 1);
                             this.getCore_().getCmdBtnState(cmdIpProgress, item, "service",
                                     deviceState.getServiceState());
-                        }
+                        }*/
                     } else {
                         if (19 == Math.round((Double) item.get("id"))) {
                             if (deviceState.getArmDisarmControl()) {

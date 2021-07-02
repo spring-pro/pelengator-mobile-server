@@ -12,23 +12,18 @@
 
 package com.pelengator.server.mobile.rest.controllers;
 
-import com.pelengator.server.autofon.AutofonCommands;
 import com.pelengator.server.dao.postgresql.dto.DialogMessageMobileEntity;
 import com.pelengator.server.dao.postgresql.entity.*;
 import com.pelengator.server.exception.mobile.BaseException;
 import com.pelengator.server.exception.mobile.PaymentNotFoundException;
 import com.pelengator.server.exception.mobile.UnknownException;
 import com.pelengator.server.mobile.Core;
-import com.pelengator.server.mobile.kafka.TransportCommandObject;
 import com.pelengator.server.mobile.rest.BaseResponse;
 import com.pelengator.server.mobile.rest.ErrorResponse;
 import com.pelengator.server.mobile.rest.entity.BaseEntity;
 import com.pelengator.server.mobile.rest.entity.request.payment.PaymentGetUrlRequest;
-import com.pelengator.server.mobile.rest.entity.response.BaseCmdResponse;
 import com.pelengator.server.mobile.rest.entity.response.payment.PaymentStatusDataResponse;
-import com.pelengator.server.utils.ApplicationConstants;
 import com.pelengator.server.utils.ApplicationUtility;
-import com.pelengator.server.utils.DeviceLogger;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 import org.hibernate.Session;
@@ -36,10 +31,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.text.NumberFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @RestController
@@ -152,7 +148,7 @@ public class PaymentController extends BaseController {
                     break;
                 case "Completed":
                     device = this.getCore_().getDao().find(Device.class, payment.getDeviceId());
-                    if (device != null) {
+                    /*if (device != null) {
                         DeviceLog deviceLog = new DeviceLog();
                         deviceLog.setDeviceId(device.getId());
                         deviceLog.setAdminId(null);
@@ -173,7 +169,7 @@ public class PaymentController extends BaseController {
 
                         if (response.getCode() == HttpStatus.OK.value())
                             device.setIsActivated(true);
-                    }
+                    }*/
 
                     payment.setStatus(Payment.PAY_STATUS_CASHLESS);
 
@@ -266,15 +262,34 @@ public class PaymentController extends BaseController {
 
             User user = this.getCore_().getDao().find(User.class, payment.getUserId());
             Device device = this.getCore_().getDao().find(Device.class, payment.getDeviceId());
+            DeviceState deviceState = this.getCore_().getDeviceState(device.getId());
+            ComplexIndividualPrice complexIndividualPrice = this.getCore_().getDao().find(ComplexIndividualPrice.class, device.getId());
+            DeviceActivations deviceActivations = this.getCore_()
+                    .getDeviceActivationsDao()
+                    .getLastActivationBySupport(device.getId(), "2021-06-01 00:00:00");
 
             String htmlSelectOptions = "";
             switch (payment.getPayType()) {
                 case Payment.PAY_TYPE_TELEMATICS: {
-                    /*if (device.getKitName().equals(ApplicationConstants.KIT_NAME_PELENGATOR_T))
-                        htmlSelectOptions += "                           <option value=\"12|1800\" selected>1 год - 1.800Р</option>\n";
-                    else
-                        htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";*/
-                    htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";
+                    if (complexIndividualPrice != null && complexIndividualPrice.getTelematics() > 0) {
+                        htmlSelectOptions += "                           <option value=\"12|" +
+                                complexIndividualPrice.getTelematics() + "\" selected>1 год - " +
+                                NumberFormat.getNumberInstance(Locale.GERMAN).format(complexIndividualPrice.getTelematics()) +
+                                "Р</option>\n";
+                    } else {
+                        if (!deviceState.isSpr4()
+                                && !deviceState.isSpr7()
+                                && !deviceState.isSpr12()
+                                && !deviceState.isSpr15()
+                                && !deviceState.isT15()
+                                && deviceState.isT5()
+                                && deviceState.isLabelSet()
+                                && deviceActivations != null) {
+                            htmlSelectOptions += "                           <option value=\"12|10000\" selected>1 год - 10.000Р</option>\n";
+                        } else {
+                            htmlSelectOptions += "                           <option value=\"12|3900\" selected>1 год - 3.900Р</option>\n";
+                        }
+                    }
                     break;
                 }
                 case Payment.PAY_TYPE_ACTIVATION: {

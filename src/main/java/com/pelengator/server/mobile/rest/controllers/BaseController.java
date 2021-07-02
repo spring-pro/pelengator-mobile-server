@@ -279,17 +279,9 @@ public abstract class BaseController {
                                         (device.getFreeUsageFinishedAt() == null ||
                                                 device.getFreeUsageFinishedAt().getTime() < ApplicationUtility.getCurrentTimeStampGMT_0())))
                 ) {
-                    if ((17 != Math.round((Double) item.get("id"))) && (4 != Math.round((Double) item.get("id")))) {
+                    if ((17 != Math.round((Double) item.get("id")))) {
                         item.put("enable", 0);
                     }
-
-                    /*
-                    очередной раз переиграно - 02.07.2021 - ОТКЛ. Егор
-                    if (4 == Math.round((Double) item.get("id"))) {
-                        item.put("enable", 1);
-                        this.getCore_().getCmdBtnStateV1(cmdIpProgress, item, "service",
-                                deviceState.isValetStatus());
-                    }*/
                 } else if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name())) {
                     if (6 != Math.round((Double) item.get("id")) &&
                             18 != Math.round((Double) item.get("id")) &&
@@ -328,34 +320,13 @@ public abstract class BaseController {
                 }
             });
 
-            if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.DISCONNECTED.name()) ||
-                    (payStateDays <= 0 && (device.getFreeUsageFinishedAt() == null ||
-                    device.getFreeUsageFinishedAt().getTime() > ApplicationUtility.getCurrentTimeStampGMT_0()))) {
-
-                bottomButtonsList.forEach(item -> {
-                    if (208 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 208);
-                        item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
-                        item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
-                    } else if (209 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 209);
-                        item.put("text", (Math.max(payStateDays, 0)) + " дн.");
-                        item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
-                    }
-                });
-            } else if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.CONNECTED.name())) {
+            if (payStateDays <= 0 &&
+                    (device.getFreeUsageFinishedAt() == null ||
+                            device.getFreeUsageFinishedAt().getTime() < ApplicationUtility.getCurrentTimeStampGMT_0())
+            ) {
                 bottomButtonsList.forEach(item -> {
                     if (201 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 201);
-                        item.put("text", String.format("%.2f", deviceState.getExternalPower() + 0.2f) + " v");
-                        // в расчете учавствует коэффициент 3.5, который равен разнице между нижним и верхним порогами напряжения АКБ
-                        // 13.6 - 10.1 = 3.5
-                        if (deviceState.getExternalPower() + 0.2f <= 10.1f)
-                            item.put("percent", 0);
-                        else if (deviceState.getExternalPower() + 0.2f > 13.6f)
-                            item.put("percent", 100);
-                        else
-                            item.put("percent", Math.round(((deviceState.getExternalPower() + 0.2f) - 10.1) * 100 / 3.5));
+                        item.put("enable", 0);
                     } else if (208 == Math.round((Double) item.get("icon_id"))) {
                         item.put("icon_id", 208);
                         item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
@@ -365,62 +336,105 @@ public abstract class BaseController {
                         item.put("text", (Math.max(payStateDays, 0)) + " дн.");
                         item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
                     } else if (205 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 205);
-                        item.put("percent", deviceState.getGsmQuality() * 100 / 7);
-                        if (deviceState.getGsmQuality() <= 0)
-                            item.put("text", "нет связи");
-                        else if (deviceState.getGsmQuality() > 0 && deviceState.getGsmQuality() < 2)
-                            item.put("text", "плохо");
-                        else if (deviceState.getGsmQuality() >= 2 && deviceState.getGsmQuality() < 4)
-                            item.put("text", "умеренно");
-                        else if (deviceState.getGsmQuality() >= 4 && deviceState.getGsmQuality() < 6)
-                            item.put("text", "хорошо");
-                        else if (deviceState.getGsmQuality() >= 6)
-                            item.put("text", "отлично");
+                        item.put("enable", 0);
                     } else if (206 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 206);
-                        item.put("percent", deviceState.getGpsQuality() * 100 / 18);
-                        if (deviceState.getGpsQuality() <= 0)
-                            item.put("text", "нет связи");
-                        else if (deviceState.getGpsQuality() > 0 && deviceState.getGpsQuality() < 5)
-                            item.put("text", "плохо");
-                        else if (deviceState.getGpsQuality() >= 5 && deviceState.getGpsQuality() < 10)
-                            item.put("text", "умеренно");
-                        else if (deviceState.getGpsQuality() >= 10 && deviceState.getGpsQuality() < 14)
-                            item.put("text", "хорошо");
-                        else if (deviceState.getGpsQuality() >= 14)
-                            item.put("text", "отлично");
+                        item.put("enable", 0);
                     } else if (202 == Math.round((Double) item.get("icon_id"))) {
-                        item.put("icon_id", 202);
-                        item.put("text", String.format("%.2f", (deviceState.getBatteryPower())) + " v");
-                        item.put("percent", Math.round((deviceState.getBatteryPower()) * 100 / 4.24));
+                        item.put("enable", 0);
                     }
                 });
+            } else {
+                if (deviceState.getStatus().equals(DeviceState.DeviceStatusEnum.CONNECTED.name())) {
+                    bottomButtonsList.forEach(item -> {
+                        if (201 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 201);
+                            item.put("text", String.format("%.2f", deviceState.getExternalPower() + 0.2f) + " v");
+                            // в расчете учавствует коэффициент 3.5, который равен разнице между нижним и верхним порогами напряжения АКБ
+                            // 13.6 - 10.1 = 3.5
+                            if (deviceState.getExternalPower() + 0.2f <= 10.1f)
+                                item.put("percent", 0);
+                            else if (deviceState.getExternalPower() + 0.2f > 13.6f)
+                                item.put("percent", 100);
+                            else
+                                item.put("percent", Math.round(((deviceState.getExternalPower() + 0.2f) - 10.1) * 100 / 3.5));
+                        } else if (208 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 208);
+                            item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
+                            item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
+                        } else if (209 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 209);
+                            item.put("text", (Math.max(payStateDays, 0)) + " дн.");
+                            item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
+                        } else if (205 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 205);
+                            item.put("percent", deviceState.getGsmQuality() * 100 / 7);
+                            if (deviceState.getGsmQuality() <= 0)
+                                item.put("text", "нет связи");
+                            else if (deviceState.getGsmQuality() > 0 && deviceState.getGsmQuality() < 2)
+                                item.put("text", "плохо");
+                            else if (deviceState.getGsmQuality() >= 2 && deviceState.getGsmQuality() < 4)
+                                item.put("text", "умеренно");
+                            else if (deviceState.getGsmQuality() >= 4 && deviceState.getGsmQuality() < 6)
+                                item.put("text", "хорошо");
+                            else if (deviceState.getGsmQuality() >= 6)
+                                item.put("text", "отлично");
+                        } else if (206 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 206);
+                            item.put("percent", deviceState.getGpsQuality() * 100 / 18);
+                            if (deviceState.getGpsQuality() <= 0)
+                                item.put("text", "нет связи");
+                            else if (deviceState.getGpsQuality() > 0 && deviceState.getGpsQuality() < 5)
+                                item.put("text", "плохо");
+                            else if (deviceState.getGpsQuality() >= 5 && deviceState.getGpsQuality() < 10)
+                                item.put("text", "умеренно");
+                            else if (deviceState.getGpsQuality() >= 10 && deviceState.getGpsQuality() < 14)
+                                item.put("text", "хорошо");
+                            else if (deviceState.getGpsQuality() >= 14)
+                                item.put("text", "отлично");
+                        } else if (202 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 202);
+                            item.put("text", String.format("%.2f", (deviceState.getBatteryPower())) + " v");
+                            item.put("percent", Math.round((deviceState.getBatteryPower()) * 100 / 4.24));
+                        }
+                    });
 
-                if (payStateDays <= 0 && (device.getFreeUsageFinishedAt() == null ||
-                        device.getFreeUsageFinishedAt().getTime() > ApplicationUtility.getCurrentTimeStampGMT_0())) {
+                    if (payStateDays <= 0 && (device.getFreeUsageFinishedAt() == null ||
+                            device.getFreeUsageFinishedAt().getTime() > ApplicationUtility.getCurrentTimeStampGMT_0())) {
 
-                    int freeUsageDays = 0;
+                        int freeUsageDays = 0;
 
-                    if (device.getFreeUsageFinishedAt() != null)
-                        freeUsageDays = (int) ((device.getFreeUsageFinishedAt().getTime() - ApplicationUtility.getCurrentTimeStampGMT_0()) / (1000 * 60 * 60 * 24));
+                        if (device.getFreeUsageFinishedAt() != null)
+                            freeUsageDays = (int) ((device.getFreeUsageFinishedAt().getTime() - ApplicationUtility.getCurrentTimeStampGMT_0()) / (1000 * 60 * 60 * 24));
 
-                    Map<String, Object> item = new HashMap<>(3);
-                    item.put("icon_id", 210);
+                        Map<String, Object> item = new HashMap<>(3);
+                        item.put("icon_id", 210);
 
-                    if (freeUsageDays == 1)
-                        item.put("text", "День");
-                    else if (freeUsageDays > 1 && freeUsageDays < 5)
-                        item.put("text", "Дня");
-                    else
-                        item.put("text", "Дней");
+                        if (freeUsageDays == 1)
+                            item.put("text", "День");
+                        else if (freeUsageDays > 1 && freeUsageDays < 5)
+                            item.put("text", "Дня");
+                        else
+                            item.put("text", "Дней");
 
-                    item.put("percent", freeUsageDays * 100 / 10);
-                    item.put("enable", 1);
-                    bottomButtonsList.add(item);
+                        item.put("percent", freeUsageDays * 100 / 10);
+                        item.put("enable", 1);
+                        bottomButtonsList.add(item);
+                    }
+
+                    data.getButtons().put("bottom", bottomButtonsList);
+                } else {
+                    bottomButtonsList.forEach(item -> {
+                        if (208 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 208);
+                            item.put("text", (Math.max(kitMaintenanceStateDays, 0)) + " дн.");
+                            item.put("percent", Math.min(kitMaintenanceStateDays * 100 / 365, 100));
+                        } else if (209 == Math.round((Double) item.get("icon_id"))) {
+                            item.put("icon_id", 209);
+                            item.put("text", (Math.max(payStateDays, 0)) + " дн.");
+                            item.put("percent", payFullPeriodDays == 0 ? 0 : Math.min(payStateDays * 100 / payFullPeriodDays, 100));
+                        }
+                    });
                 }
-
-                data.getButtons().put("bottom", bottomButtonsList);
             }
         }
     }

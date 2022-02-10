@@ -17,7 +17,7 @@
 
         <spring.version>5.1.9.RELEASE</spring.version>
         <apache.common.lang3.version>3.0</apache.common.lang3.version>
-        <hibernate.version>5.4.6.Final</hibernate.version>
+        <hibernate.version>5.4.24.Final</hibernate.version>
         <hibernate.validator.version>6.0.17.Final</hibernate.validator.version>
         <hibernate.commons.annotations.version>5.1.0.Final</hibernate.commons.annotations.version>
         <hibernate.jpa-2.1.api.version>1.0.2.Final</hibernate.jpa-2.1.api.version>
